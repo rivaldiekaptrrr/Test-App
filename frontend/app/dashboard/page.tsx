@@ -130,6 +130,32 @@ export default function DashboardPage() {
     const fetchDashboardData = async () => {
         try {
             setIsRefreshing(true)
+
+            const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
+            if (isDemo) {
+                setTimeout(() => {
+                    setStats({
+                        totalExams: 12,
+                        activeSessions: 3,
+                        totalParticipants: 145,
+                        completionRate: 85,
+                        cheatingDetected: 2
+                    })
+                    setRecentExams([
+                        { id: '1', code: 'PROG2026', title: 'Programming Fundamentals', description: '', duration: 60, status: 'published', questions: 20, participants: 45, avgScore: 82.5, category: 'Tech' },
+                        { id: '2', code: 'MATH101', title: 'Calculus I', description: '', duration: 90, status: 'published', questions: 30, participants: 100, avgScore: 75.0, category: 'Math' }
+                    ])
+                    setRecentActivity([
+                        { id: 1, type: 'exam_complete', user: 'John Doe', exam: 'Programming Fundamentals', time: '5 mins ago', score: 90, avatar: 'JD' },
+                        { id: 2, type: 'violation', user: 'Alice Smith', exam: 'Calculus I', time: '12 mins ago', violation: 'Tab Switch Detected', avatar: 'AS' },
+                        { id: 3, type: 'exam_start', user: 'Bob Johnson', exam: 'Programming Fundamentals', time: '20 mins ago', avatar: 'BJ' }
+                    ])
+                    setError(null)
+                    setIsRefreshing(false)
+                }, 800)
+                return
+            }
+
             const token = getAuthToken()
 
             const response = await fetch('/api/dashboard', {
@@ -343,7 +369,7 @@ export default function DashboardPage() {
                             </Link>
                         </div>
 
-                        <div className="flex-1 overflow-x-auto">
+                        <div className="flex-1 overflow-x-auto min-h-[350px]">
                             {recentExams.length === 0 ? (
                                 <div className="p-8 text-center text-slate-400">
                                     <ListChecks className="w-12 h-12 mx-auto mb-4 opacity-50" />
@@ -355,53 +381,41 @@ export default function DashboardPage() {
                                     </Link>
                                 </div>
                             ) : (
-                                <table className="w-full text-left border-collapse">
+                                <table className="w-full text-left border-collapse table-fixed">
                                     <thead>
-                                        <tr className="border-b border-white/5 text-xs uppercase tracking-wider text-slate-500 bg-[#162036]">
-                                            <th className="px-8 py-4 font-semibold">Exam Details</th>
-                                            <th className="px-6 py-4 font-semibold text-center">Status</th>
-                                            <th className="px-6 py-4 font-semibold text-center">Stats</th>
-                                            <th className="px-6 py-4 font-semibold text-right">Actions</th>
+                                        <tr className="border-b border-white/5 text-xs uppercase tracking-wider text-slate-500 bg-[#1A2438]/50">
+                                            <th className="px-6 py-4 font-semibold w-[70%]">Exam Details</th>
+                                            <th className="px-6 py-4 font-semibold text-right w-[30%]">Stats</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/5">
                                         {recentExams.map((exam) => (
-                                            <tr key={exam.id} className="group hover:bg-white/[0.02] transition-colors">
-                                                <td className="px-8 py-5">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500/10 to-blue-500/10 border border-blue-500/10 flex items-center justify-center text-blue-400 shadow-inner">
+                                            <tr key={exam.id} className="group hover:bg-white/[0.02] transition-colors relative">
+                                                <td className="px-6 py-5">
+                                                    <Link href={`/exams/${exam.id}`} className="absolute inset-0 z-10" aria-label={`View ${exam.title}`} />
+                                                    <div className="flex items-center gap-4 relative z-0">
+                                                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500/10 to-blue-500/10 border border-blue-500/10 flex items-center justify-center text-blue-400 shadow-inner group-hover:scale-105 transition-transform flex-shrink-0">
                                                             <Code className="w-6 h-6" />
                                                         </div>
-                                                        <div>
-                                                            <h3 className="text-white font-semibold text-sm group-hover:text-blue-400 transition-colors">{exam.title}</h3>
-                                                            <p className="text-slate-500 text-xs mt-0.5 line-clamp-1">{exam.code} • {exam.questions} questions</p>
+                                                        <div className="min-w-0 flex-1">
+                                                            <h3 className="text-white font-bold text-sm group-hover:text-blue-400 transition-colors flex items-center gap-2">
+                                                                <span className="truncate">{exam.title}</span>
+                                                                <span className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] uppercase font-bold tracking-wider border ${
+                                                                    exam.status === 'published' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                                                }`}>
+                                                                    {exam.status}
+                                                                </span>
+                                                            </h3>
+                                                            <p className="text-slate-500 text-xs mt-0.5 truncate">{exam.code} • {exam.questions} questions</p>
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-5 text-center">
-                                                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${exam.status === 'published'
-                                                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                                                        : exam.status === 'draft'
-                                                            ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                                                            : 'bg-slate-500/10 text-slate-400 border-slate-500/20'
-                                                        }`}>
-                                                        <span className={`w-1.5 h-1.5 rounded-full ${exam.status === 'published' ? 'bg-emerald-400' : 'bg-amber-400'} animate-pulse`}></span>
-                                                        {exam.status}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-5">
-                                                    <div className="flex flex-col items-center gap-1">
+                                                <td className="px-6 py-5 text-right relative z-0">
+                                                    <div className="flex flex-col items-end gap-1">
                                                         <span className="text-sm font-bold text-white">{exam.participants} Users</span>
-                                                        <span className="text-xs text-slate-500 font-medium">Avg {exam.avgScore}%</span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-5 text-right">
-                                                    <div className="flex justify-end gap-2">
-                                                        <Link href={`/exams/${exam.id}`}>
-                                                            <button className="p-2 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors border border-transparent hover:border-blue-500/20">
-                                                                <Eye className="w-5 h-5" />
-                                                            </button>
-                                                        </Link>
+                                                        <span className="text-[11px] text-slate-400 font-medium bg-[#1A2438] border border-white/5 px-2 py-0.5 rounded">
+                                                            Avg: <span className="text-blue-400 font-bold">{exam.avgScore}%</span>
+                                                        </span>
                                                     </div>
                                                 </td>
                                             </tr>
