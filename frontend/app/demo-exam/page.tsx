@@ -132,6 +132,14 @@ export default function SampleExamPage() {
                                         : 'border-white/5 bg-[#0B1121] hover:bg-[#1A2438] hover:border-white/10'
                                         }`}
                                 >
+                                    <input
+                                        type="radio"
+                                        name={`question-${currentQ.id}`}
+                                        value={option.id}
+                                        checked={answers[currentQ.id] === option.id}
+                                        onChange={() => handleAnswer(currentQ.id, option.id)}
+                                        className="hidden"
+                                    />
                                     <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${answers[currentQ.id] === option.id
                                         ? 'border-blue-500 bg-blue-500'
                                         : 'border-slate-600 group-hover:border-slate-500'

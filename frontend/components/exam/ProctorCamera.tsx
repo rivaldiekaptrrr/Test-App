@@ -1,11 +1,14 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { uploadSnapshot } from '@/lib/api/golang-client'
+import { uploadSnapshot, logViolation } from '@/lib/api/golang-client'
 import { getAuthToken } from '@/lib/db/client'
 
 // Demo mode logic
 const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
+
+// Type-only reference for face-api — loaded dynamically at runtime
+type FaceApiModule = typeof import('@vladmandic/face-api')
 
 interface ProctorCameraProps {
     sessionId: string
@@ -24,6 +27,27 @@ export function ProctorCamera({
     const [stream, setStream] = useState<MediaStream | null>(null)
     const [isRecording, setIsRecording] = useState(false)
     const [snapshotCount, setSnapshotCount] = useState(0)
+    const [modelsLoaded, setModelsLoaded] = useState(false)
+    const [faceCount, setFaceCount] = useState<number | null>(null)
+    const [warning, setWarning] = useState<string | null>(null)
+    const faceApiRef = useRef<FaceApiModule | null>(null)
+
+    // Load AI Models dynamically (client-side only) to avoid SSR crash
+    useEffect(() => {
+        const loadModels = async () => {
+            try {
+                // Dynamic import ensures this never runs on the server
+                const faceapi = await import('@vladmandic/face-api')
+                faceApiRef.current = faceapi
+                await faceapi.nets.tinyFaceDetector.loadFromUri('/models')
+                setModelsLoaded(true)
+                console.log('Face detection models loaded successfully')
+            } catch (err) {
+                console.error('Failed to load face detection models', err)
+            }
+        }
+        loadModels()
+    }, [])
 
     // Initialize camera
     useEffect(() => {
@@ -109,6 +133,53 @@ export function ProctorCamera({
         return () => clearInterval(intervalId)
     }, [interval, enabled, isRecording, captureSnapshot])
 
+    // Setup interval for real-time face detection
+    useEffect(() => {
+        if (!enabled || !isRecording || !modelsLoaded) return
+
+        let isDetecting = false
+
+        const detectFaces = async () => {
+            if (!videoRef.current || isDetecting) return
+            
+            if (videoRef.current.readyState !== videoRef.current.HAVE_ENOUGH_DATA) return
+
+            isDetecting = true
+            try {
+                const faceapi = faceApiRef.current
+                if (!faceapi) return
+
+                // Detect faces
+                const detections = await faceapi.detectAllFaces(
+                    videoRef.current,
+                    new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 })
+                )
+                
+                const count = detections.length
+                setFaceCount(count)
+
+                // Check violations
+                if (count > 1) {
+                    setWarning('Multiple faces detected!')
+                    const token = await getAuthToken()
+                    await logViolation(sessionId, 'multiple_faces', { count }, token).catch(console.error)
+                } else if (count === 0) {
+                    setWarning('No face detected!')
+                } else {
+                    setWarning(null)
+                }
+            } catch (err) {
+                console.error('Face detection error:', err)
+            } finally {
+                isDetecting = false
+            }
+        }
+
+        const intervalId = setInterval(detectFaces, 2000) // Scan every 2 seconds
+
+        return () => clearInterval(intervalId)
+    }, [enabled, isRecording, modelsLoaded, sessionId])
+
     if (!enabled) return null
 
     return (
@@ -124,9 +195,16 @@ export function ProctorCamera({
 
                 {/* Recording indicator */}
                 {isRecording && (
-                    <div className="absolute top-2 left-2 flex items-center gap-2 bg-red-500 text-white px-2 py-1 rounded text-xs font-medium">
-                        <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
-                        REC
+                    <div className="absolute top-2 left-2 flex flex-col gap-1">
+                        <div className="flex items-center gap-2 bg-red-500 text-white px-2 py-1 rounded text-xs font-medium w-fit">
+                            <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                            REC
+                        </div>
+                        {modelsLoaded && faceCount !== null && (
+                            <div className="flex items-center gap-1 bg-black/60 text-white px-2 py-1 rounded text-[10px]">
+                                👤 {faceCount}
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -144,9 +222,17 @@ export function ProctorCamera({
             </div>
 
             {/* Camera label */}
-            <p className="text-xs text-center mt-1 text-muted-foreground">
-                Proctoring Active
+            <p className="text-xs text-center mt-1 text-slate-400 font-medium flex items-center justify-center gap-1">
+                <span className={`w-1.5 h-1.5 rounded-full ${modelsLoaded ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></span>
+                {modelsLoaded ? 'AI Proctoring Active' : 'Loading AI...'}
             </p>
+
+            {/* Warning popup */}
+            {warning && (
+                <div className="absolute -top-12 right-0 bg-rose-500 text-white text-xs font-bold px-3 py-1.5 rounded shadow-[0_0_15px_rgba(244,63,94,0.5)] animate-bounce whitespace-nowrap border border-rose-400">
+                    ⚠️ {warning}
+                </div>
+            )}
         </div>
     )
 }
