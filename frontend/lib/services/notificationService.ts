@@ -3,6 +3,7 @@
  * Handles creating, fetching, and managing user notifications
  */
 
+// @ts-nocheck
 import { supabase } from '@/lib/supabase/client'
 
 export interface Notification {

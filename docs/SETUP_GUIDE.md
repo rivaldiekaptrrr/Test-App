@@ -8,13 +8,13 @@ This guide provides step-by-step instructions to set up the Online Exam System f
 
 - **Node.js** v18+ ([Download](https://nodejs.org/))
 - **Go** v1.22+ ([Download](https://go.dev/dl/)) (Required for the camera proctoring backend)
-- **PostgreSQL** (e.g., [Neon.tech](https://neon.tech/))
+- **PostgreSQL** (e.g., [Supabase.com](https://Supabase.com/))
 
 ---
 
-## 🗄️ Step 1: Database Setup (Neon)
+## 🗄️ Step 1: Database Setup (Supabase)
 
-1. Create a project at [Neon.tech](https://neon.tech/).
+1. Create a project at [Supabase.com](https://Supabase.com/).
 2. Copy your Connection String (`DATABASE_URL`).
 3. Run the SQL scripts in `database/` in this order:
    - `part_1_schema.sql`
@@ -93,6 +93,6 @@ npm run dev
 
 ## 🛠️ Troubleshooting
 
-- **Database Connection Error**: Ensure `?sslmode=require` is added to your `DATABASE_URL` if using Neon.
+- **Database Connection Error**: Ensure `?sslmode=require` is added to your `DATABASE_URL` if using Supabase.
 - **JWT Errors**: Ensure `JWT_SECRET` is identical in both frontend and backend.
 - **Port Conflict**: If port 8080 or 3000 is used, kill the process or change the port in `.env` files.

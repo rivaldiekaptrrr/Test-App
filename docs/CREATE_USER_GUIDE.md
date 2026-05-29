@@ -18,7 +18,7 @@ The easiest way to create a new student account is via the signup page:
 
 ## 🎓 Option 2: Via SQL (Admin/Manual)
 
-To manually create users (especially admins or teachers), run the following SQL in your Neon console:
+To manually create users (especially admins or teachers), run the following SQL in your Supabase Dashboard:
 
 ```sql
 -- Template for manual user creation

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { neon } from '@neondatabase/serverless'
+import postgres from 'postgres'
 import { jwtVerify } from 'jose'
 
 function getSQL() {
@@ -7,7 +7,7 @@ function getSQL() {
     if (!databaseUrl) {
         throw new Error('DATABASE_URL is not set')
     }
-    return neon(databaseUrl)
+    return postgres(databaseUrl)
 }
 
 function getJWTSecret() {
@@ -17,106 +17,152 @@ function getJWTSecret() {
 async function getUser(request: NextRequest) {
     const authHeader = request.headers.get('authorization')
     const token = authHeader?.replace('Bearer ', '')
-    if (!token) {
-        console.log('No token found in Authorization header');
-        return null;
-    }
+
+    if (!token) return null
+
     try {
         const { payload } = await jwtVerify(token, getJWTSecret())
-        console.log('Decoded JWT Payload:', payload);
         return {
             id: payload.sub as string,
-            role: payload.role as string
+            email: payload.email as string
         }
-    } catch (e: any) {
-        console.log(`JWT Verification failed for token ${token.slice(0, 10)}...: ${e.message}`);
+    } catch {
         return null
     }
 }
 
-// GET Exam Details (by owner)
-export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
-    const params = await props.params;
-    const examId = params.id
-    console.log('GET Exam Request:', { examId });
-    console.log('Headers:', Object.fromEntries(request.headers.entries()));
-
+export async function POST(request: NextRequest) {
     try {
         const sql = getSQL()
         const user = await getUser(request)
+
         if (!user) {
-            console.log('Unauthorized request');
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
-        console.log(`Authenticated User: ${user.id} (${user.role})`);
-
-        // Use SELECT * to ensure all fields are returned
-        const exams = await sql`
-            SELECT * FROM exams 
-            WHERE id = ${examId}
-        `
-
-        if (exams.length === 0) {
-            console.log(`Exam ${examId} not found in database`);
-            return NextResponse.json({ error: 'Exam not found' }, { status: 404 })
-        }
-
-        const exam = exams[0]
-        console.log('Exam Found:', { id: exam.id, created_by: exam.created_by });
-
-        // Verify ownership (unless admin)
-        if (user.role !== 'admin' && String(exam.created_by) !== String(user.id)) {
-            console.log(`Access denied: User ${user.id} (${user.role}) !== Owner ${exam.created_by}`);
-            return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-        }
-
-        return NextResponse.json({ exam })
-
-    } catch (error: any) {
-        console.error('API Error in GET /api/exams/[id]:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-}
-
-// UPDATE Exam
-export async function PUT(request: NextRequest, props: { params: Promise<{ id: string }> }) {
-    const params = await props.params;
-    try {
-        const sql = getSQL()
-        const user = await getUser(request)
-        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-        const examId = params.id
         const body = await request.json()
+        const { sessionId, answers } = body
 
-        // Allowed fields
-        const { title, description, duration, status, proctoring_enabled, start_time, end_time } = body
+        if (!sessionId) {
+            return NextResponse.json({ error: 'Session ID required' }, { status: 400 })
+        }
 
-        // Check ownership
-        const currentExam = await sql`SELECT created_by FROM exams WHERE id = ${examId}`
-        if (currentExam.length === 0) return NextResponse.json({ error: 'Exam not found' }, { status: 404 })
-        if (currentExam[0].created_by !== user.id) return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-
-        // Update
-        const updated = await sql`
-            UPDATE exams
-            SET 
-                title = COALESCE(${title}, title),
-                description = COALESCE(${description}, description),
-                duration = COALESCE(${duration}, duration),
-                status = COALESCE(${status}, status),
-                proctoring_enabled = COALESCE(${proctoring_enabled}, proctoring_enabled),
-                start_time = COALESCE(${start_time}, start_time),
-                end_time = COALESCE(${end_time}, end_time),
-                updated_at = NOW()
-            WHERE id = ${examId}
-            RETURNING *
+        // 1. Get Session & Exam Info
+        const sessions = await sql`
+            SELECT s.id, s.exam_id, s.status, e.id as exam_pk
+            FROM exam_sessions s
+            JOIN exams e ON s.exam_id = e.id
+            WHERE s.id = ${sessionId} AND s.user_id = ${user.id}
         `
 
-        return NextResponse.json({ success: true, exam: updated[0] })
+        if (sessions.length === 0) {
+            return NextResponse.json({ error: 'Session not found' }, { status: 404 })
+        }
+        const session = sessions[0]
+
+        if (session.status === 'completed') {
+            return NextResponse.json({ error: 'Session already completed' }, { status: 400 })
+        }
+
+        // 2. Fetch Questions and Correct Answers for Grading
+        const questions = await sql`
+            SELECT id, question_type, points
+            FROM questions
+            WHERE exam_id = ${session.exam_id}
+        `
+
+        const questionIds = questions.map(q => q.id)
+
+        let correctOptionsMap: Record<string, string> = {}
+        if (questionIds.length > 0) {
+            const correctOptions = await sql`
+                SELECT question_id, id
+                FROM question_options
+                WHERE question_id = ANY(${questionIds}) AND is_correct = true
+            `
+            correctOptions.forEach(opt => {
+                correctOptionsMap[opt.question_id] = opt.id
+            })
+        }
+
+        // 3. Calculate Score using Promise.all for async inserts
+        let totalScore = 0
+        let maxScore = 0
+
+        // Prepare student_answers inserts
+        // We'll iterate questions to ensure we grade everything
+        for (const q of questions) {
+            // maxScore += parseFloat(q.points)
+            maxScore += Number(q.points)
+
+            const userAnswer = answers[q.id]
+            let isCorrect = false
+            let pointsEarned = 0
+
+            // Grading Logic
+            if (q.question_type === 'multiple_choice' || q.question_type === 'true_false') {
+                const correctOptionId = correctOptionsMap[q.id]
+                if (userAnswer && userAnswer === correctOptionId) {
+                    isCorrect = true
+                    pointsEarned = Number(q.points)
+                }
+            }
+            // For essay/short_answer, we might need manual grading or simple string match
+            // Creating a simple auto-grade for short answer could be exact string match if we had the answer text
+            // For now, only MC/TF are auto-graded. Others get 0 points pending manual review (conceptually)
+
+            totalScore += pointsEarned
+
+            // Insert into student_answers (or update if exists)
+            // Using ON CONFLICT to handle re-submissions if necessary, though logic is one-time submit mostly
+            if (userAnswer) {
+                await sql`
+                    INSERT INTO student_answers (
+                        session_id, question_id, selected_option_id, answer_text, is_correct, points_earned
+                    )
+                    VALUES (
+                        ${sessionId}, 
+                        ${q.id}, 
+                        ${(q.question_type === 'multiple_choice' || q.question_type === 'true_false') ? userAnswer : null},
+                        ${(q.question_type !== 'multiple_choice' && q.question_type !== 'true_false') ? userAnswer : null},
+                        ${isCorrect},
+                        ${pointsEarned}
+                    )
+                    ON CONFLICT (session_id, question_id) 
+                    DO UPDATE SET 
+                        selected_option_id = EXCLUDED.selected_option_id,
+                        answer_text = EXCLUDED.answer_text,
+                        is_correct = EXCLUDED.is_correct,
+                        points_earned = EXCLUDED.points_earned,
+                        updated_at = NOW()
+                `
+            }
+        }
+
+        // Calculate Percentage
+        const percentage = maxScore > 0 ? (totalScore / maxScore) * 100 : 0
+
+        // 4. Update Exam Session
+        await sql`
+            UPDATE exam_sessions
+            SET 
+                status = 'completed',
+                completed_at = NOW(),
+                score = ${percentage},
+                max_score = ${maxScore},
+                answers = ${JSON.stringify(answers)}
+            WHERE id = ${sessionId}
+        `
+
+        return NextResponse.json({
+            success: true,
+            score: percentage,
+            maxScore: maxScore,
+            status: 'completed'
+        })
 
     } catch (error: any) {
+        console.error('Submit exam error:', error)
         return NextResponse.json({ error: error.message }, { status: 500 })
     }
 }

@@ -1,15 +1,15 @@
-# 🗄️ Neon Database Setup Guide
+# 🗄️ Supabase Database Setup Guide
 
-## ⚠️ PENTING - Cara Run di Neon
+## ⚠️ PENTING - Cara Run di Supabase
 
-Neon SQL Editor kadang **tidak bisa menjalankan semua script sekaligus**. Jika error, ikuti cara ini:
+Supabase SQL Editor kadang **tidak bisa menjalankan semua script sekaligus**. Jika error, ikuti cara ini:
 
 ---
 
 ## 🚀 Quick Start (Recommended)
 
-### Step 1: Run di Neon SQL Editor
-1. Buka [Neon Console](https://console.neon.tech)
+### Step 1: Run di Supabase SQL Editor
+1. Buka [Supabase Dashboard](https://console.Supabase.com)
 2. Pilih project Anda
 3. Klik **SQL Editor**
 4. Copy-paste **SELURUH ISI** file `complete_setup.sql`
@@ -99,11 +99,11 @@ users          | 3
 
 ---
 
-## 🔗 Cara Dapat DATABASE_URL dari Neon (Step-by-Step)
+## 🔗 Cara Dapat DATABASE_URL dari Supabase (Step-by-Step)
 
-### Step 1: Buka Neon Console
-1. Buka browser → https://console.neon.tech
-2. Login dengan akun Neon Anda
+### Step 1: Buka Supabase Dashboard
+1. Buka browser → https://console.Supabase.com
+2. Login dengan akun Supabase Anda
 
 ### Step 2: Pilih Project
 1. Di dashboard, klik project database Anda
@@ -116,17 +116,17 @@ users          | 3
 
 ### Step 4: Copy Connection String
 1. Pastikan dropdown menunjukkan:
-   - **Role:** `neondb_owner` (atau user Anda)
-   - **Database:** `neondb` (atau nama database Anda)
+   - **Role:** `Supabasedb_owner` (atau user Anda)
+   - **Database:** `Supabasedb` (atau nama database Anda)
 2. Klik ikon **Copy** di sebelah connection string
 3. String yang di-copy akan terlihat seperti ini:
 
 ```
-postgresql://neondb_owner:password123@ep-green-rain-abc123-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require
+postgresql://Supabasedb_owner:password123@ep-green-rain-abc123-pooler.us-east-2.aws.Supabase.com/Supabasedb?sslmode=require
 ```
 
 ### Step 5: Pilih Format yang Benar
-Di Neon, ada beberapa tab/pilihan format:
+Di Supabase, ada beberapa tab/pilihan format:
 - **Pooled connection** ← **GUNAKAN INI!** (ada kata `-pooler` di URL)
 - **Direct connection** 
 - **psql**
@@ -135,15 +135,15 @@ Di Neon, ada beberapa tab/pilihan format:
 
 ### Contoh URL yang Benar:
 ```
-postgresql://neondb_owner:npg_ZsNKISMb13Dr@ep-green-rain-ae46y52i-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require
+postgresql://Supabasedb_owner:npg_ZsNKISMb13Dr@ep-green-rain-ae46y52i-pooler.us-east-2.aws.Supabase.com/Supabasedb?sslmode=require
 ```
 
 **Catatan:**
-- `neondb_owner` = username
+- `Supabasedb_owner` = username
 - `npg_ZsNKISMb13Dr` = password (jangan share!)
 - `ep-green-rain-ae46y52i-pooler` = endpoint + `-pooler`
-- `us-east-2.aws.neon.tech` = region
-- `neondb` = database name
+- `us-east-2.aws.Supabase.com` = region
+- `Supabasedb` = database name
 - `sslmode=require` = SSL wajib
 
 ---
@@ -161,11 +161,11 @@ Buka file dan isi seperti ini:
 
 ```env
 # ===========================================
-# NEON DATABASE CONFIGURATION
+# Supabase DATABASE CONFIGURATION
 # ===========================================
 
-# Paste connection string dari Neon Console di sini:
-DATABASE_URL=postgresql://neondb_owner:npg_ZsNKISMb13Dr@ep-green-rain-ae46y52i-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require
+# Paste connection string dari Supabase Dashboard di sini:
+DATABASE_URL=postgresql://Supabasedb_owner:npg_ZsNKISMb13Dr@ep-green-rain-ae46y52i-pooler.us-east-2.aws.Supabase.com/Supabasedb?sslmode=require
 
 # JWT Secret (buat random string minimal 32 karakter)
 # Generate di: https://generate-secret.vercel.app/32
@@ -180,7 +180,7 @@ NEXT_PUBLIC_API_URL=http://localhost:3000/api
 NEXT_PUBLIC_APP_NAME=ExamProctor
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 
-# Set ke false untuk pakai database Neon
+# Set ke false untuk pakai database Supabase
 NEXT_PUBLIC_DEMO_MODE=false
 ```
 
@@ -194,7 +194,7 @@ npm run dev
 ## 🐛 Troubleshooting
 
 ### Error: "syntax error at or near EXTENSION"
-**Solution:** Abaikan - Extensions sudah terinstall di Neon
+**Solution:** Abaikan - Extensions sudah terinstall di Supabase
 
 ### Error: "type already exists"
 **Solution:** Types sudah ada. Run DROP TYPE dulu:
@@ -214,7 +214,7 @@ DROP TYPE IF EXISTS user_role CASCADE;
 
 ### Error: "Invalid credentials"
 **Solution:** 
-1. Copy ulang connection string dari Neon Console
+1. Copy ulang connection string dari Supabase Dashboard
 2. Pastikan password tidak ada karakter special yang ter-encode
 
 ---

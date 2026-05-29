@@ -1,27 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { neon } from '@neondatabase/serverless'
+import postgres from 'postgres'
 import { jwtVerify } from 'jose'
 
+// Helper to get SQL client safely
 function getSQL() {
     const databaseUrl = process.env.DATABASE_URL
     if (!databaseUrl) {
         throw new Error('DATABASE_URL is not set')
     }
-    return neon(databaseUrl)
+    return postgres(databaseUrl)
 }
 
 function getJWTSecret() {
     return new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret-min-32-characters!')
 }
 
+// Verify JWT and get user
 async function getUser(request: NextRequest) {
     const authHeader = request.headers.get('authorization')
     const token = authHeader?.replace('Bearer ', '')
+
     if (!token) return null
+
     try {
         const { payload } = await jwtVerify(token, getJWTSecret())
         return {
             id: payload.sub as string,
+            email: payload.email as string,
             role: payload.role as string
         }
     } catch {
@@ -29,121 +34,125 @@ async function getUser(request: NextRequest) {
     }
 }
 
-export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
-    const params = await props.params;
+// GET /api/exams - List all exams
+export async function GET(request: NextRequest) {
     try {
         const sql = getSQL()
         const user = await getUser(request)
-        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-        const examId = params.id
-
-        // 1. Verify exam ownership or admin status
-        const exams = await sql`SELECT id, created_by FROM exams WHERE id = ${examId}`
-        if (exams.length === 0) {
-            return NextResponse.json({ error: 'Exam not found' }, { status: 404 })
-        }
-
-        if (user.role !== 'admin' && String(exams[0].created_by) !== String(user.id)) {
-            return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-        }
-
-        // 2. Fetch Questions (Use question_order from schema)
-        const questions = await sql`
-            SELECT id, question_text, question_type, points, question_order as "order_number", explanation
-            FROM questions 
-            WHERE exam_id = ${examId} 
-            ORDER BY question_order
-        `
-
-        // 3. Fetch Options for all questions (Use option_order from schema)
-        const questionIds = questions.map(q => q.id)
-        let optionsMap: Record<string, any[]> = {}
-
-        if (questionIds.length > 0) {
-            const options = await sql`
-                SELECT id, question_id, option_text, is_correct, option_order as "order_number"
-                FROM question_options 
-                WHERE question_id = ANY(${questionIds})
-                ORDER BY option_order
+        // Get published exams (or all if teacher/admin)
+        let exams
+        if (user && ['admin', 'teacher', 'hr'].includes(user.role)) {
+            exams = await sql`
+                SELECT 
+                    id, code, title, description, duration, status,
+                    proctoring_enabled, camera_required, tab_switch_allowed,
+                    start_time, end_time, question_count, created_by, created_at
+                FROM exams
+                ORDER BY created_at DESC
             `
-            options.forEach(opt => {
-                if (!optionsMap[opt.question_id]) {
-                    optionsMap[opt.question_id] = []
-                }
-                optionsMap[opt.question_id].push(opt)
-            })
+        } else {
+            // For students or unauthenticated users, show only published exams
+            exams = await sql`
+                SELECT 
+                    id, code, title, description, duration, status,
+                    proctoring_enabled, camera_required, tab_switch_allowed,
+                    start_time, end_time, question_count, created_at
+                FROM exams
+                WHERE status = 'published'
+                ORDER BY created_at DESC
+            `
         }
 
-        const result = questions.map(q => ({
-            ...q,
-            options: optionsMap[q.id] || []
-        }))
-
-        return NextResponse.json({ questions: result })
+        console.log(`Returning ${exams.length} exams for user ${user?.id}`);
+        if (exams.length > 0) {
+            console.log('Sample exam ID:', exams[0].id);
+        }
+        return NextResponse.json({ exams })
 
     } catch (error: any) {
-        console.error('Get questions error:', error)
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        console.error('Get exams error:', error.message || error)
+        return NextResponse.json(
+            { error: 'Failed to fetch exams' },
+            { status: 500 }
+        )
     }
 }
 
-export async function POST(request: NextRequest, props: { params: Promise<{ id: string }> }) {
-    const params = await props.params;
+// POST /api/exams - Create new exam
+export async function POST(request: NextRequest) {
     try {
         const sql = getSQL()
         const user = await getUser(request)
-        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-        const examId = params.id
+        if (!user) {
+            return NextResponse.json(
+                { error: 'Unauthorized' },
+                { status: 401 }
+            )
+        }
 
-        // Check ownership
-        const exams = await sql`SELECT created_by FROM exams WHERE id = ${examId}`
-        if (exams.length === 0) return NextResponse.json({ error: 'Exam not found' }, { status: 404 })
-        if (user.role !== 'admin' && String(exams[0].created_by) !== String(user.id)) {
-            return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+        if (!['admin', 'teacher', 'hr'].includes(user.role)) {
+            return NextResponse.json(
+                { error: 'Only teachers can create exams' },
+                { status: 403 }
+            )
         }
 
         const body = await request.json()
         const {
-            question_text,
-            question_type,
-            points,
-            order_number, // Matches frontend
-            explanation,
-            options
+            code,
+            title,
+            description,
+            duration = 60,
+            proctoring_enabled = false,
+            camera_required = false,
+            tab_switch_allowed = 2,
+            start_time,
+            end_time
         } = body
 
-        // 1. Insert Question
-        const questions = await sql`
-            INSERT INTO questions (
-                exam_id, question_text, question_type, points, question_order, explanation
+        if (!code || !title) {
+            return NextResponse.json(
+                { error: 'Code and title are required' },
+                { status: 400 }
             )
-            VALUES (
-                ${examId}, ${question_text}, ${question_type}, ${points}, ${order_number || 0}, ${explanation}
-            )
-            RETURNING id, question_text, question_type, points, question_order as "order_number", explanation
-        `
-        const question = questions[0]
-
-        // 2. Insert Options if any
-        if (options && options.length > 0) {
-            for (const [idx, opt] of options.entries()) {
-                await sql`
-                    INSERT INTO question_options (
-                        question_id, option_text, is_correct, option_order
-                    )
-                    VALUES (
-                        ${question.id}, ${opt.option_text}, ${opt.is_correct}, ${opt.order_number || idx + 1}
-                    )
-                `
-            }
         }
 
-        return NextResponse.json({ success: true, question })
+        // Check if code already exists
+        const existing = await sql`
+            SELECT id FROM exams WHERE code = ${code}
+        `
+
+        if (existing.length > 0) {
+            return NextResponse.json(
+                { error: 'Exam code already exists' },
+                { status: 400 }
+            )
+        }
+
+        // Create exam
+        const exams = await sql`
+            INSERT INTO exams (
+                code, title, description, duration, status,
+                proctoring_enabled, camera_required, tab_switch_allowed,
+                start_time, end_time, created_by
+            )
+            VALUES (
+                ${code}, ${title}, ${description || null}, ${duration}, 'draft',
+                ${proctoring_enabled}, ${camera_required}, ${tab_switch_allowed},
+                ${start_time || null}, ${end_time || null}, ${user.id}
+            )
+            RETURNING *
+        `
+
+        return NextResponse.json({ exam: exams[0] }, { status: 201 })
 
     } catch (error: any) {
-        console.error('Create question error:', error)
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        console.error('Create exam error:', error.message || error)
+        return NextResponse.json(
+            { error: 'Failed to create exam' },
+            { status: 500 }
+        )
     }
 }

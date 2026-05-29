@@ -1,8 +1,8 @@
 -- ============================================================================
--- COMPLETE DATABASE SETUP FOR NEON DATABASE
+-- COMPLETE DATABASE SETUP FOR Supabase DATABASE
 -- ============================================================================
 -- Description: Complete database schema for Online Exam System with Anti-Cheating
--- Database: Neon (PostgreSQL)
+-- Database: Supabase (PostgreSQL)
 -- Version: 2.0
 -- Created: 2026-01-30
 -- 
@@ -13,7 +13,7 @@
 -- 4. Seed data (demo users and exams)
 -- 
 -- HOW TO USE:
--- 1. Open Neon Dashboard → SQL Editor
+-- 1. Open Supabase Dashboard → SQL Editor
 -- 2. Copy and paste this ENTIRE file
 -- 3. Click "Run" ▶️
 -- 4. Wait for completion (~10-15 seconds)
@@ -21,9 +21,9 @@
 -- ============================================================================
 
 -- ============================================================================
--- SECTION 1: EXTENSIONS (Already enabled by default in Neon)
+-- SECTION 1: EXTENSIONS (Already enabled by default in Supabase)
 -- ============================================================================
--- Note: pgcrypto and uuid-ossp are pre-installed in Neon
+-- Note: pgcrypto and uuid-ossp are pre-installed in Supabase
 -- If you get an error, extensions are already active - just skip this section
 
 -- ============================================================================
@@ -532,7 +532,7 @@ BEGIN
     
     RAISE NOTICE '';
     RAISE NOTICE '==========================================';
-    RAISE NOTICE 'NEON DATABASE SETUP COMPLETE!';
+    RAISE NOTICE 'Supabase DATABASE SETUP COMPLETE!';
     RAISE NOTICE '==========================================';
     RAISE NOTICE 'Tables created: %', table_count;
     RAISE NOTICE 'Users created: %', user_count;
@@ -545,7 +545,7 @@ BEGIN
     RAISE NOTICE '  Student: student@demo.com / Demo123!';
     RAISE NOTICE '';
     RAISE NOTICE 'Next Steps:';
-    RAISE NOTICE '1. Copy your Neon connection string';
+    RAISE NOTICE '1. Copy your Supabase connection string';
     RAISE NOTICE '2. Update frontend .env.local file';
     RAISE NOTICE '3. Start the application!';
     RAISE NOTICE '==========================================';

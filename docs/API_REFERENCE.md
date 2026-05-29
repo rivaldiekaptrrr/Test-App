@@ -117,5 +117,5 @@ Lists all users. (Admin Only)
 
 ## Implementation Notes for Future Database Migration
 1. **JWT Verification**: Each API route verifies the JWT using the `JWT_SECRET` environment variable. 
-2. **Database Client**: Database interactions are abstracted using the Neon serverless driver. To change databases, update `@/lib/db/client.ts` and the `getSQL()` utility in API routes.
+2. **Database Client**: Database interactions are abstracted using the Supabase serverless driver. To change databases, update `@/lib/db/client.ts` and the `getSQL()` utility in API routes.
 3. **Password Security**: Current implementation uses `pgcrypto` in PostgreSQL for hashing (`CRYPT`). If moving to a different DB, ensuring password hashing parity is critical.

@@ -1,19 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { neon } from '@neondatabase/serverless'
+import postgres from 'postgres'
 import { jwtVerify } from 'jose'
 
+// Helper to get SQL client safely
 function getSQL() {
     const databaseUrl = process.env.DATABASE_URL
     if (!databaseUrl) {
         throw new Error('DATABASE_URL is not set')
     }
-    return neon(databaseUrl)
+    return postgres(databaseUrl)
 }
 
 function getJWTSecret() {
     return new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret-min-32-characters!')
 }
 
+// Verify JWT and get user
 async function getUser(request: NextRequest) {
     const authHeader = request.headers.get('authorization')
     const token = authHeader?.replace('Bearer ', '')
@@ -32,79 +34,125 @@ async function getUser(request: NextRequest) {
     }
 }
 
-export async function GET(request: NextRequest, props: { params: Promise<{ code: string }> }) {
-    const params = await props.params;
+// GET /api/exams - List all exams
+export async function GET(request: NextRequest) {
+    try {
+        const sql = getSQL()
+        const user = await getUser(request)
+
+        // Get published exams (or all if teacher/admin)
+        let exams
+        if (user && ['admin', 'teacher', 'hr'].includes(user.role)) {
+            exams = await sql`
+                SELECT 
+                    id, code, title, description, duration, status,
+                    proctoring_enabled, camera_required, tab_switch_allowed,
+                    start_time, end_time, question_count, created_by, created_at
+                FROM exams
+                ORDER BY created_at DESC
+            `
+        } else {
+            // For students or unauthenticated users, show only published exams
+            exams = await sql`
+                SELECT 
+                    id, code, title, description, duration, status,
+                    proctoring_enabled, camera_required, tab_switch_allowed,
+                    start_time, end_time, question_count, created_at
+                FROM exams
+                WHERE status = 'published'
+                ORDER BY created_at DESC
+            `
+        }
+
+        console.log(`Returning ${exams.length} exams for user ${user?.id}`);
+        if (exams.length > 0) {
+            console.log('Sample exam ID:', exams[0].id);
+        }
+        return NextResponse.json({ exams })
+
+    } catch (error: any) {
+        console.error('Get exams error:', error.message || error)
+        return NextResponse.json(
+            { error: 'Failed to fetch exams' },
+            { status: 500 }
+        )
+    }
+}
+
+// POST /api/exams - Create new exam
+export async function POST(request: NextRequest) {
     try {
         const sql = getSQL()
         const user = await getUser(request)
 
         if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+            return NextResponse.json(
+                { error: 'Unauthorized' },
+                { status: 401 }
+            )
         }
 
-        const { code } = params
+        if (!['admin', 'teacher', 'hr'].includes(user.role)) {
+            return NextResponse.json(
+                { error: 'Only teachers can create exams' },
+                { status: 403 }
+            )
+        }
 
-        // Check if user already completed this exam
-        const existingSession = await sql`
-            SELECT id, score, completed_at
-            FROM exam_sessions
-            WHERE user_id = ${user.id}
-            AND exam_id = (SELECT id FROM exams WHERE code = ${code})
-            AND status = 'completed'
+        const body = await request.json()
+        const {
+            code,
+            title,
+            description,
+            duration = 60,
+            proctoring_enabled = false,
+            camera_required = false,
+            tab_switch_allowed = 2,
+            start_time,
+            end_time
+        } = body
+
+        if (!code || !title) {
+            return NextResponse.json(
+                { error: 'Code and title are required' },
+                { status: 400 }
+            )
+        }
+
+        // Check if code already exists
+        const existing = await sql`
+            SELECT id FROM exams WHERE code = ${code}
         `
 
-        if (existingSession.length > 0) {
-            return NextResponse.json({
-                error: 'Exam already completed',
-                score: existingSession[0].score
-            }, { status: 403 })
+        if (existing.length > 0) {
+            return NextResponse.json(
+                { error: 'Exam code already exists' },
+                { status: 400 }
+            )
         }
 
-        // Get exam details
+        // Create exam
         const exams = await sql`
-            SELECT 
-                e.id, 
-                e.code, 
-                e.title, 
-                e.description, 
-                e.duration, 
-                e.question_count, 
-                e.proctoring_enabled,
-                e.status,
-                u.full_name as instructor_name
-            FROM exams e
-            LEFT JOIN users u ON e.created_by = u.id
-            WHERE e.code = ${code}
-            AND e.status = 'published'
+            INSERT INTO exams (
+                code, title, description, duration, status,
+                proctoring_enabled, camera_required, tab_switch_allowed,
+                start_time, end_time, created_by
+            )
+            VALUES (
+                ${code}, ${title}, ${description || null}, ${duration}, 'draft',
+                ${proctoring_enabled}, ${camera_required}, ${tab_switch_allowed},
+                ${start_time || null}, ${end_time || null}, ${user.id}
+            )
+            RETURNING *
         `
 
-        if (exams.length === 0) {
-            return NextResponse.json({ error: 'Exam not found' }, { status: 404 })
-        }
-
-        const exam = exams[0]
-
-        // Extract rules (simple logic for now, similar to previous frontend logic)
-        let rules = [
-            'Full screen mode is mandatory',
-            'Tab switching is strictly prohibited',
-            'No external devices or materials allowed'
-        ]
-
-        if (exam.proctoring_enabled) {
-            rules.push('Webcam must be active at all times')
-        }
-
-        return NextResponse.json({
-            exam: {
-                ...exam,
-                instructor: exam.instructor_name || 'N/A',
-                rules
-            }
-        })
+        return NextResponse.json({ exam: exams[0] }, { status: 201 })
 
     } catch (error: any) {
-        console.error('Get exam details error:', error)
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        console.error('Create exam error:', error.message || error)
+        return NextResponse.json(
+            { error: 'Failed to create exam' },
+            { status: 500 }
+        )
     }
 }

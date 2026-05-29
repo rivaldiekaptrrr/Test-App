@@ -5,7 +5,7 @@ A powerful online examination platform with advanced anti-cheating proctoring fe
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Next.js](https://img.shields.io/badge/Next.js-15-black)
 ![Go](https://img.shields.io/badge/Go-1.24-00ADD8)
-![Neon](https://img.shields.io/badge/Neon-PostgreSQL-00E599)
+![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E)
 
 ## ✨ Features
 
@@ -25,7 +25,7 @@ A powerful online examination platform with advanced anti-cheating proctoring fe
 - Comprehensive analytics
 
 ### 🔒 Security
-- JWT authentication with Neon/PostgreSQL
+- JWT authentication with Supabase/PostgreSQL
 - Role Based Access Control (RBAC)
 - Path sanitization to prevent traversal attacks
 - Multi-tenancy support
@@ -98,8 +98,8 @@ exam-proctoring-system/
 - **Node.js** 18+ ([Download](https://nodejs.org/))
 - **Go** 1.22+ ([Download](https://go.dev/dl/))
 
-### 1. Setup Database (Neon.tech)
-1. Create a project on [Neon.tech](https://neon.tech/)
+### 1. Setup Database (Supabase.com)
+1. Create a project on [Supabase.com](https://Supabase.com/)
 2. Copy your `DATABASE_URL` connection string.
 3. Open a SQL console and run the scripts in `/database` in order:
    - `part_1_schema.sql`

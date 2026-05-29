@@ -1,6 +1,6 @@
 # Database Schema Documentation
 
-This document describes the database schema used in the Test App. This is designed to be compatible with PostgreSQL (specifically Neon.tech).
+This document describes the database schema used in the Test App. This is designed to be compatible with PostgreSQL (specifically Supabase.com).
 
 ## Tables
 

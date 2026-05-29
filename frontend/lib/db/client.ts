@@ -1,21 +1,8 @@
-import { neon } from '@neondatabase/serverless'
-
 // Check if running in demo mode
 export const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
 
-// Create Neon SQL client
+// Database URL (server-side only typically, but kept for reference if needed)
 const databaseUrl = process.env.DATABASE_URL || ''
-
-// SQL function for database queries
-let sql: ReturnType<typeof neon> | null = null
-
-if (!isDemoMode && databaseUrl) {
-    sql = neon(databaseUrl)
-} else if (!isDemoMode) {
-    console.warn('⚠️ DATABASE_URL missing. Set DATABASE_URL in .env.local')
-}
-
-export { sql }
 
 // Types
 export interface User {

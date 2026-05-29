@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { neon } from '@neondatabase/serverless'
+import postgres from 'postgres'
 import { jwtVerify } from 'jose'
 
-const sql = neon(process.env.DATABASE_URL!)
+const sql = postgres(process.env.DATABASE_URL!)
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret-min-32-characters!')
 
 export async function POST(request: NextRequest) {

@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { neon } from '@neondatabase/serverless'
+import postgres from 'postgres'
 
 function getSQL() {
     const databaseUrl = process.env.DATABASE_URL
     if (!databaseUrl) {
         throw new Error('DATABASE_URL is not set')
     }
-    return neon(databaseUrl)
+    return postgres(databaseUrl)
 }
 
 export async function GET(request: NextRequest) {

@@ -1,6 +1,6 @@
-# 🚀 Neon Graphics Database Setup Guide
+# 🚀 Supabase Graphics Database Setup Guide
 
-This guide describes how to set up the database using Neon (PostgreSQL).
+This guide describes how to set up the database using Supabase (PostgreSQL).
 
 ---
 
@@ -38,7 +38,7 @@ Once you run `part_2_logic_data.sql`, these users will be available:
 ---
 
 ## 🧪 Verification
-After running the scripts, you can verify the setup by running this query in your Neon SQL console:
+After running the scripts, you can verify the setup by running this query in your Supabase SQL console:
 
 ```sql
 SELECT table_name 

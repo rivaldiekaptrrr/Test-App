@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { neon } from '@neondatabase/serverless'
+import postgres from 'postgres'
 import { jwtVerify } from 'jose'
 
 function getSQL() {
@@ -7,7 +7,7 @@ function getSQL() {
     if (!databaseUrl) {
         throw new Error('DATABASE_URL is not set')
     }
-    return neon(databaseUrl)
+    return postgres(databaseUrl)
 }
 
 function getJWTSecret() {
