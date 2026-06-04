@@ -110,7 +110,7 @@ export default function StudentPortal() {
 
                 <div className="mt-8 text-center">
                     <p className="text-slate-500 text-sm">
-                        Waiting for an exam invite link? Check your email or contact your teacher.
+                        Waiting for an exam invite link? Check your email or contact your admin.
                     </p>
                 </div>
             </div>

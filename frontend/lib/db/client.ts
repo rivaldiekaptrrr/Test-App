@@ -10,7 +10,7 @@ export interface User {
     email: string
     full_name: string | null
     avatar_url: string | null
-    role: 'admin' | 'teacher' | 'hr' | 'student' | 'applicant'
+    role: 'admin' | 'user'
     organization_id: string | null
     is_active: boolean
     created_at: string
@@ -34,22 +34,22 @@ const demoUsers: Record<string, User> = {
         is_active: true,
         created_at: new Date().toISOString()
     },
-    'teacher@demo.com': {
+    'creator@demo.com': {
         id: '00000000-0000-0000-0000-000000000020',
-        email: 'teacher@demo.com',
-        full_name: 'Teacher Demo',
+        email: 'creator@demo.com',
+        full_name: 'Creator Admin',
         avatar_url: null,
-        role: 'teacher',
+        role: 'admin',
         organization_id: '00000000-0000-0000-0000-000000000001',
         is_active: true,
         created_at: new Date().toISOString()
     },
-    'student@demo.com': {
+    'user@demo.com': {
         id: '00000000-0000-0000-0000-000000000030',
-        email: 'student@demo.com',
-        full_name: 'Student Demo',
+        email: 'user@demo.com',
+        full_name: 'User Demo',
         avatar_url: null,
-        role: 'student',
+        role: 'user',
         organization_id: '00000000-0000-0000-0000-000000000001',
         is_active: true,
         created_at: new Date().toISOString()

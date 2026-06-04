@@ -195,9 +195,9 @@ export default function DashboardPage() {
             setUserRole(user.role)
             setUserName(user.full_name || user.email.split('@')[0])
 
-            // If student, redirect to student portal
-            if (user.role === 'student' || user.role === 'applicant') {
-                router.replace('/student')
+            // If user, redirect to user portal
+            if (user.role === 'user') {
+                router.replace('/user')
                 return
             }
 
@@ -231,7 +231,7 @@ export default function DashboardPage() {
                         <div>
                             <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400 tracking-tight">ExamProctor</span>
                             <span className="text-[10px] block text-slate-500 uppercase tracking-wider font-bold mt-0.5">
-                                {userRole === 'admin' ? 'Admin Panel' : 'Teacher Panel'}
+                                {userRole === 'admin' ? 'Admin Panel' : 'Admin Panel'}
                             </span>
                         </div>
                     </Link>

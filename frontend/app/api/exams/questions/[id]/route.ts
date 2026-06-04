@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import postgres from 'postgres'
 import { jwtVerify } from 'jose'
 
-// Helper to get SQL client safely
 function getSQL() {
     const databaseUrl = process.env.DATABASE_URL
     if (!databaseUrl) {
@@ -15,7 +14,6 @@ function getJWTSecret() {
     return new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret-min-32-characters!')
 }
 
-// Verify JWT and get user
 async function getUser(request: NextRequest) {
     const authHeader = request.headers.get('authorization')
     const token = authHeader?.replace('Bearer ', '')
@@ -34,125 +32,123 @@ async function getUser(request: NextRequest) {
     }
 }
 
-// GET /api/exams - List all exams
-export async function GET(request: NextRequest) {
-    try {
-        const sql = getSQL()
-        const user = await getUser(request)
-
-        // Get published exams (or all if teacher/admin)
-        let exams
-        if (user && ['admin', 'teacher', 'hr'].includes(user.role)) {
-            exams = await sql`
-                SELECT 
-                    id, code, title, description, duration, status,
-                    proctoring_enabled, camera_required, tab_switch_allowed,
-                    start_time, end_time, question_count, created_by, created_at
-                FROM exams
-                ORDER BY created_at DESC
-            `
-        } else {
-            // For students or unauthenticated users, show only published exams
-            exams = await sql`
-                SELECT 
-                    id, code, title, description, duration, status,
-                    proctoring_enabled, camera_required, tab_switch_allowed,
-                    start_time, end_time, question_count, created_at
-                FROM exams
-                WHERE status = 'published'
-                ORDER BY created_at DESC
-            `
-        }
-
-        console.log(`Returning ${exams.length} exams for user ${user?.id}`);
-        if (exams.length > 0) {
-            console.log('Sample exam ID:', exams[0].id);
-        }
-        return NextResponse.json({ exams })
-
-    } catch (error: any) {
-        console.error('Get exams error:', error.message || error)
-        return NextResponse.json(
-            { error: 'Failed to fetch exams' },
-            { status: 500 }
-        )
-    }
-}
-
-// POST /api/exams - Create new exam
-export async function POST(request: NextRequest) {
+// GET /api/exams/questions/[id] - Get all questions for an exam
+export async function GET(
+    request: NextRequest,
+    { params }: { params: { id: string } }
+) {
     try {
         const sql = getSQL()
         const user = await getUser(request)
 
         if (!user) {
-            return NextResponse.json(
-                { error: 'Unauthorized' },
-                { status: 401 }
-            )
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
-        if (!['admin', 'teacher', 'hr'].includes(user.role)) {
-            return NextResponse.json(
-                { error: 'Only teachers can create exams' },
-                { status: 403 }
-            )
-        }
+        const { id } = await params
 
-        const body = await request.json()
-        const {
-            code,
-            title,
-            description,
-            duration = 60,
-            proctoring_enabled = false,
-            camera_required = false,
-            tab_switch_allowed = 2,
-            start_time,
-            end_time
-        } = body
-
-        if (!code || !title) {
-            return NextResponse.json(
-                { error: 'Code and title are required' },
-                { status: 400 }
-            )
-        }
-
-        // Check if code already exists
-        const existing = await sql`
-            SELECT id FROM exams WHERE code = ${code}
+        // Fetch questions
+        const questions = await sql`
+            SELECT * FROM questions 
+            WHERE exam_id = ${id}
+            ORDER BY question_order ASC
         `
 
-        if (existing.length > 0) {
-            return NextResponse.json(
-                { error: 'Exam code already exists' },
-                { status: 400 }
-            )
+        // Fetch options if any
+        if (questions.length > 0) {
+            const qIds = questions.map(q => q.id)
+            const options = await sql`
+                SELECT * FROM question_options 
+                WHERE question_id = ANY(${qIds})
+                ORDER BY option_order ASC
+            `
+            
+            // Attach options to questions
+            for (let q of questions) {
+                // Remove correct answers if user is not admin
+                q.options = options
+                    .filter(opt => opt.question_id === q.id)
+                    .map(opt => {
+                        if (user.role !== 'admin') {
+                            const { is_correct, ...rest } = opt;
+                            return rest;
+                        }
+                        return opt;
+                    });
+            }
         }
 
-        // Create exam
-        const exams = await sql`
-            INSERT INTO exams (
-                code, title, description, duration, status,
-                proctoring_enabled, camera_required, tab_switch_allowed,
-                start_time, end_time, created_by
-            )
-            VALUES (
-                ${code}, ${title}, ${description || null}, ${duration}, 'draft',
-                ${proctoring_enabled}, ${camera_required}, ${tab_switch_allowed},
-                ${start_time || null}, ${end_time || null}, ${user.id}
-            )
-            RETURNING *
-        `
-
-        return NextResponse.json({ exam: exams[0] }, { status: 201 })
+        return NextResponse.json({ questions })
 
     } catch (error: any) {
-        console.error('Create exam error:', error.message || error)
-        return NextResponse.json(
-            { error: 'Failed to create exam' },
-            { status: 500 }
-        )
+        console.error('Get questions error:', error)
+        return NextResponse.json({ error: error.message || 'Failed to fetch questions' }, { status: 500 })
+    }
+}
+
+// POST /api/exams/questions/[id] - Create a new question for an exam
+export async function POST(
+    request: NextRequest,
+    { params }: { params: { id: string } }
+) {
+    try {
+        const sql = getSQL()
+        const user = await getUser(request)
+
+        if (!user || user.role !== 'admin') {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+
+        const { id } = await params
+        const body = await request.json()
+
+        const { question_text, question_type, points, explanation, order_index, options } = body
+
+        const metadata = JSON.stringify({ explanation: explanation || '' })
+
+        // Auto-calculate next question_order
+        const orderResult = await sql`
+            SELECT COALESCE(MAX(question_order), -1) + 1 AS next_order FROM questions WHERE exam_id = ${id}
+        `
+        const nextOrder = order_index ?? orderResult[0].next_order
+
+        // Insert question
+        const questions = await sql`
+            INSERT INTO questions (exam_id, question_text, question_type, points, metadata, question_order)
+            VALUES (${id}, ${question_text}, ${question_type}, ${points}, ${metadata}, ${nextOrder})
+            RETURNING *
+        `
+        const newQuestion = questions[0]
+
+        // Insert options if provided
+        let newOptions = []
+        if (options && options.length > 0) {
+            const optionsData = options.map((opt: any) => ({
+                question_id: newQuestion.id,
+                option_text: opt.option_text,
+                is_correct: opt.is_correct || false,
+                option_order: opt.option_order || 1
+            }))
+
+            newOptions = await sql`
+                INSERT INTO question_options ${sql(optionsData, 'question_id', 'option_text', 'is_correct', 'option_order')}
+                RETURNING *
+            `
+        }
+
+        newQuestion.options = newOptions
+
+        // Update exam question_count
+        await sql`
+            UPDATE exams 
+            SET question_count = (SELECT COUNT(*) FROM questions WHERE exam_id = ${id})
+            WHERE id = ${id}
+        `
+
+        return NextResponse.json({ question: newQuestion }, { status: 201 })
+
+    } catch (error: any) {
+        console.error('Create question error:', error)
+        return NextResponse.json({ error: error.message || 'Failed to create question' }, { status: 500 })
     }
 }

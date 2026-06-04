@@ -80,7 +80,7 @@ export default function ExamsListPage() {
     const [searchQuery, setSearchQuery] = useState('')
     const [showToast, setShowToast] = useState(false)
     const [toastMessage, setToastMessage] = useState('')
-    const [userRole, setUserRole] = useState<string>('student')
+    const [userRole, setUserRole] = useState<string>('user')
 
     // Fetch exams from API
     useEffect(() => {
@@ -177,8 +177,8 @@ export default function ExamsListPage() {
                                 Live Database
                             </span>
 
-                            {/* Only show Create Exam for admin/teacher */}
-                            {['admin', 'teacher'].includes(userRole) && (
+                            {/* Only show Create Exam for admin */}
+                            {userRole === 'admin' && (
                                 <Link href="/exams/create">
                                     <button className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:from-blue-500 hover:to-indigo-500 shadow-lg shadow-blue-600/25 transition-all flex items-center gap-2">
                                         <Plus className="w-5 h-5" />
@@ -319,8 +319,8 @@ export default function ExamsListPage() {
 
                                         {/* Footer & Actions */}
                                         <div className="mt-auto pt-4 border-t border-white/5 space-y-2">
-                                            {/* Admin/Teacher Options */}
-                                            {['admin', 'teacher'].includes(userRole) ? (
+                                            {/* Admin Options */}
+                                            {userRole === 'admin' ? (
                                                 <>
                                                     <div className="grid grid-cols-2 gap-2 mb-2">
                                                         <button
@@ -332,7 +332,7 @@ export default function ExamsListPage() {
                                                         </button>
                                                     </div>
 
-                                                    <div className="grid grid-cols-2 gap-2">
+                                                    <div className="grid grid-cols-3 gap-2">
                                                         <Link href={`/exams/${exam.id}/edit`}>
                                                             <button className="w-full py-2 bg-[#1A2333] hover:bg-[#1F2937] text-slate-300 hover:text-white rounded-lg text-xs font-semibold border border-white/10 hover:border-white/20 transition-all flex items-center justify-center gap-1.5">
                                                                 <Edit3 className="w-3.5 h-3.5" />
@@ -343,6 +343,12 @@ export default function ExamsListPage() {
                                                             <button className="w-full py-2 bg-[#1A2333] hover:bg-[#1F2937] text-slate-300 hover:text-white rounded-lg text-xs font-semibold border border-white/10 hover:border-white/20 transition-all flex items-center justify-center gap-1.5">
                                                                 <ListChecks className="w-3.5 h-3.5" />
                                                                 Questions
+                                                            </button>
+                                                        </Link>
+                                                        <Link href={`/exams/${exam.id}/submissions`}>
+                                                            <button className="w-full py-2 bg-[#1A2333] hover:bg-[#1F2937] text-slate-300 hover:text-white rounded-lg text-xs font-semibold border border-white/10 hover:border-white/20 transition-all flex items-center justify-center gap-1.5">
+                                                                <Users className="w-3.5 h-3.5" />
+                                                                Submissions
                                                             </button>
                                                         </Link>
                                                     </div>
@@ -371,7 +377,7 @@ export default function ExamsListPage() {
                                 <p className="text-slate-400 mb-6">
                                     {searchQuery ? 'Try adjusting your search' : 'No exams available yet'}
                                 </p>
-                                {['admin', 'teacher'].includes(userRole) && (
+                                {userRole === 'admin' && (
                                     <Link href="/exams/create">
                                         <button className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors">
                                             Create First Exam

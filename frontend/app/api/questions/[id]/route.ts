@@ -24,145 +24,116 @@ async function getUser(request: NextRequest) {
         const { payload } = await jwtVerify(token, getJWTSecret())
         return {
             id: payload.sub as string,
-            email: payload.email as string
+            email: payload.email as string,
+            role: payload.role as string
         }
     } catch {
         return null
     }
 }
 
-export async function POST(request: NextRequest) {
+// PUT /api/questions/[id] - Update a question
+export async function PUT(
+    request: NextRequest,
+    { params }: { params: { id: string } }
+) {
     try {
         const sql = getSQL()
         const user = await getUser(request)
 
-        if (!user) {
+        if (!user || user.role !== 'admin') {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
+        const { id } = await params
         const body = await request.json()
-        const { sessionId, answers } = body
 
-        if (!sessionId) {
-            return NextResponse.json({ error: 'Session ID required' }, { status: 400 })
-        }
+        const { question_text, question_type, points, explanation, options } = body
 
-        // 1. Get Session & Exam Info
-        const sessions = await sql`
-            SELECT s.id, s.exam_id, s.status, e.id as exam_pk
-            FROM exam_sessions s
-            JOIN exams e ON s.exam_id = e.id
-            WHERE s.id = ${sessionId} AND s.user_id = ${user.id}
-        `
+        const metadata = JSON.stringify({ explanation: explanation || '' })
 
-        if (sessions.length === 0) {
-            return NextResponse.json({ error: 'Session not found' }, { status: 404 })
-        }
-        const session = sessions[0]
-
-        if (session.status === 'completed') {
-            return NextResponse.json({ error: 'Session already completed' }, { status: 400 })
-        }
-
-        // 2. Fetch Questions and Correct Answers for Grading
+        // Update question
         const questions = await sql`
-            SELECT id, question_type, points
-            FROM questions
-            WHERE exam_id = ${session.exam_id}
+            UPDATE questions SET
+                question_text = COALESCE(${question_text ?? null}, question_text),
+                question_type = COALESCE(${question_type ?? null}, question_type),
+                points = COALESCE(${points ?? null}, points),
+                metadata = COALESCE(${metadata ?? null}, metadata)
+            WHERE id = ${id}
+            RETURNING *
         `
+        
+        if (questions.length === 0) {
+            return NextResponse.json({ error: 'Question not found' }, { status: 404 })
+        }
+        const updatedQuestion = questions[0]
 
-        const questionIds = questions.map(q => q.id)
+        // Update options if provided
+        let newOptions = []
+        if (options && options.length > 0) {
+            // Delete old options
+            await sql`DELETE FROM question_options WHERE question_id = ${id}`
+            
+            // Insert new ones
+            const optionsData = options.map((opt: any, index: number) => ({
+                question_id: id,
+                option_text: opt.option_text,
+                is_correct: opt.is_correct || false,
+                option_order: index + 1
+            }))
 
-        let correctOptionsMap: Record<string, string> = {}
-        if (questionIds.length > 0) {
-            const correctOptions = await sql`
-                SELECT question_id, id
-                FROM question_options
-                WHERE question_id = ANY(${questionIds}) AND is_correct = true
+            newOptions = await sql`
+                INSERT INTO question_options ${sql(optionsData, 'question_id', 'option_text', 'is_correct', 'option_order')}
+                RETURNING *
             `
-            correctOptions.forEach(opt => {
-                correctOptionsMap[opt.question_id] = opt.id
-            })
         }
 
-        // 3. Calculate Score using Promise.all for async inserts
-        let totalScore = 0
-        let maxScore = 0
+        updatedQuestion.options = newOptions
 
-        // Prepare student_answers inserts
-        // We'll iterate questions to ensure we grade everything
-        for (const q of questions) {
-            // maxScore += parseFloat(q.points)
-            maxScore += Number(q.points)
-
-            const userAnswer = answers[q.id]
-            let isCorrect = false
-            let pointsEarned = 0
-
-            // Grading Logic
-            if (q.question_type === 'multiple_choice' || q.question_type === 'true_false') {
-                const correctOptionId = correctOptionsMap[q.id]
-                if (userAnswer && userAnswer === correctOptionId) {
-                    isCorrect = true
-                    pointsEarned = Number(q.points)
-                }
-            }
-            // For essay/short_answer, we might need manual grading or simple string match
-            // Creating a simple auto-grade for short answer could be exact string match if we had the answer text
-            // For now, only MC/TF are auto-graded. Others get 0 points pending manual review (conceptually)
-
-            totalScore += pointsEarned
-
-            // Insert into student_answers (or update if exists)
-            // Using ON CONFLICT to handle re-submissions if necessary, though logic is one-time submit mostly
-            if (userAnswer) {
-                await sql`
-                    INSERT INTO student_answers (
-                        session_id, question_id, selected_option_id, answer_text, is_correct, points_earned
-                    )
-                    VALUES (
-                        ${sessionId}, 
-                        ${q.id}, 
-                        ${(q.question_type === 'multiple_choice' || q.question_type === 'true_false') ? userAnswer : null},
-                        ${(q.question_type !== 'multiple_choice' && q.question_type !== 'true_false') ? userAnswer : null},
-                        ${isCorrect},
-                        ${pointsEarned}
-                    )
-                    ON CONFLICT (session_id, question_id) 
-                    DO UPDATE SET 
-                        selected_option_id = EXCLUDED.selected_option_id,
-                        answer_text = EXCLUDED.answer_text,
-                        is_correct = EXCLUDED.is_correct,
-                        points_earned = EXCLUDED.points_earned,
-                        updated_at = NOW()
-                `
-            }
-        }
-
-        // Calculate Percentage
-        const percentage = maxScore > 0 ? (totalScore / maxScore) * 100 : 0
-
-        // 4. Update Exam Session
-        await sql`
-            UPDATE exam_sessions
-            SET 
-                status = 'completed',
-                completed_at = NOW(),
-                score = ${percentage},
-                max_score = ${maxScore},
-                answers = ${JSON.stringify(answers)}
-            WHERE id = ${sessionId}
-        `
-
-        return NextResponse.json({
-            success: true,
-            score: percentage,
-            maxScore: maxScore,
-            status: 'completed'
-        })
+        return NextResponse.json({ question: updatedQuestion })
 
     } catch (error: any) {
-        console.error('Submit exam error:', error)
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        console.error('Update question error:', error)
+        return NextResponse.json({ error: error.message || 'Failed to update question' }, { status: 500 })
+    }
+}
+
+// DELETE /api/questions/[id] - Delete a question
+export async function DELETE(
+    request: NextRequest,
+    { params }: { params: { id: string } }
+) {
+    try {
+        const sql = getSQL()
+        const user = await getUser(request)
+
+        if (!user || user.role !== 'admin') {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+
+        const { id } = await params
+
+        // Get exam_id first to update question count later
+        const existing = await sql`SELECT exam_id FROM questions WHERE id = ${id}`
+        if (existing.length === 0) {
+            return NextResponse.json({ error: 'Question not found' }, { status: 404 })
+        }
+        const examId = existing[0].exam_id
+
+        // Delete question
+        await sql`DELETE FROM questions WHERE id = ${id}`
+
+        // Update exam question_count
+        await sql`
+            UPDATE exams 
+            SET question_count = (SELECT COUNT(*) FROM questions WHERE exam_id = ${examId})
+            WHERE id = ${examId}
+        `
+
+        return NextResponse.json({ success: true })
+
+    } catch (error: any) {
+        console.error('Delete question error:', error)
+        return NextResponse.json({ error: error.message || 'Failed to delete question' }, { status: 500 })
     }
 }

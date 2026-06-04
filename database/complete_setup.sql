@@ -29,7 +29,7 @@
 -- ============================================================================
 -- SECTION 2: DROP EXISTING TABLES (Clean Install)
 -- ============================================================================
-DROP TABLE IF EXISTS student_answers CASCADE;
+DROP TABLE IF EXISTS user_answers CASCADE;
 DROP TABLE IF EXISTS question_options CASCADE;
 DROP TABLE IF EXISTS questions CASCADE;
 DROP TABLE IF EXISTS cheating_logs CASCADE;
@@ -50,10 +50,10 @@ DROP TYPE IF EXISTS notification_type CASCADE;
 -- ============================================================================
 -- SECTION 3: CREATE CUSTOM TYPES
 -- ============================================================================
-CREATE TYPE user_role AS ENUM ('admin', 'teacher', 'hr', 'student', 'applicant');
+CREATE TYPE user_role AS ENUM ('admin', 'user');
 CREATE TYPE exam_status AS ENUM ('draft', 'published', 'archived');
 CREATE TYPE session_status AS ENUM ('not_started', 'in_progress', 'completed', 'blocked', 'graded');
-CREATE TYPE question_type AS ENUM ('multiple_choice', 'essay', 'code', 'file_upload');
+CREATE TYPE question_type AS ENUM ('multiple_choice', 'true_false', 'essay', 'short_answer', 'code', 'file_upload');
 CREATE TYPE violation_type AS ENUM ('tab_switch', 'multiple_faces', 'no_face', 'phone_detected', 'copy_paste', 'right_click');
 CREATE TYPE notification_type AS ENUM ('exam_assigned', 'exam_reminder', 'exam_graded', 'violation_warning');
 
@@ -80,7 +80,7 @@ CREATE TABLE users (
     password_hash TEXT NOT NULL,
     full_name TEXT,
     avatar_url TEXT,
-    role user_role DEFAULT 'student',
+    role user_role DEFAULT 'user',
     organization_id UUID REFERENCES organizations(id) ON DELETE SET NULL,
     email_verified BOOLEAN DEFAULT false,
     is_active BOOLEAN DEFAULT true,
@@ -159,7 +159,7 @@ CREATE TABLE question_options (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Table: exam_sessions (Student exam attempts)
+-- Table: exam_sessions (User exam attempts)
 CREATE TABLE exam_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     exam_id UUID NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
@@ -191,8 +191,8 @@ CREATE TABLE exam_sessions (
     UNIQUE(exam_id, user_id)
 );
 
--- Table: student_answers (Individual answer records)
-CREATE TABLE student_answers (
+-- Table: user_answers (Individual answer records)
+CREATE TABLE user_answers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     session_id UUID NOT NULL REFERENCES exam_sessions(id) ON DELETE CASCADE,
     question_id UUID NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
@@ -256,8 +256,8 @@ CREATE INDEX idx_sessions_user ON exam_sessions(user_id);
 CREATE INDEX idx_sessions_status ON exam_sessions(status);
 CREATE INDEX idx_sessions_exam_code ON exam_sessions(exam_code);
 
-CREATE INDEX idx_answers_session ON student_answers(session_id);
-CREATE INDEX idx_answers_question ON student_answers(question_id);
+CREATE INDEX idx_answers_session ON user_answers(session_id);
+CREATE INDEX idx_answers_question ON user_answers(question_id);
 
 CREATE INDEX idx_cheating_session ON cheating_logs(session_id);
 CREATE INDEX idx_cheating_type ON cheating_logs(violation_type);
@@ -346,8 +346,8 @@ CREATE TRIGGER update_exam_sessions_updated_at
     BEFORE UPDATE ON exam_sessions
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_student_answers_updated_at 
-    BEFORE UPDATE ON student_answers
+CREATE TRIGGER update_user_answers_updated_at 
+    BEFORE UPDATE ON user_answers
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Auto-update question count
@@ -384,26 +384,26 @@ VALUES
     ),
     (
         '00000000-0000-0000-0000-000000000020',
-        'teacher@demo.com',
+        'creator@demo.com',
         crypt('Demo123!', gen_salt('bf', 10)),
-        'Teacher Demo',
-        'teacher',
+        'Creator Admin',
+        'admin',
         '00000000-0000-0000-0000-000000000001',
         true,
         true
     ),
     (
         '00000000-0000-0000-0000-000000000030',
-        'student@demo.com',
+        'user@demo.com',
         crypt('Demo123!', gen_salt('bf', 10)),
-        'Student Demo',
-        'student',
+        'User Demo',
+        'user',
         '00000000-0000-0000-0000-000000000001',
         true,
         true
     );
 
--- Insert demo exams (created by teacher)
+-- Insert demo exams (created by admin)
 INSERT INTO exams (id, code, title, description, duration, status, proctoring_enabled, camera_required, tab_switch_allowed, created_by, organization_id)
 VALUES 
     (
@@ -541,8 +541,8 @@ BEGIN
     RAISE NOTICE '';
     RAISE NOTICE 'Demo Credentials:';
     RAISE NOTICE '  Admin: admin@demo.com / Demo123!';
-    RAISE NOTICE '  Teacher: teacher@demo.com / Demo123!';
-    RAISE NOTICE '  Student: student@demo.com / Demo123!';
+    RAISE NOTICE '  Admin: admin@demo.com / Demo123!';
+    RAISE NOTICE '  User: user@demo.com / Demo123!';
     RAISE NOTICE '';
     RAISE NOTICE 'Next Steps:';
     RAISE NOTICE '1. Copy your Supabase connection string';

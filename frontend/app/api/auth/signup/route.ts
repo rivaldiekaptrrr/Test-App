@@ -23,9 +23,9 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
         }
 
-        // Validate Role (only allow student/teacher)
-        const validRoles = ['student', 'teacher']
-        const userRole = validRoles.includes(role) ? role : 'student'
+        // Validate Role (only allow user/admin)
+        const validRoles = ['user', 'admin']
+        const userRole = validRoles.includes(role) ? role : 'user'
 
         // Check if user exists
         const existingUsers = await sql`SELECT id FROM users WHERE email = ${email}`

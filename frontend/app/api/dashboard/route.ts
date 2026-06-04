@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
             violationsResult
         ] = await Promise.all([
             sql`SELECT COUNT(*) as count FROM exams`,
-            sql`SELECT COUNT(*) as count FROM users WHERE role = 'student'`,
+            sql`SELECT COUNT(*) as count FROM users WHERE role = 'user'`,
             sql`SELECT 
                     COUNT(*) as total,
                     COUNT(CASE WHEN status = 'in_progress' THEN 1 END) as active,

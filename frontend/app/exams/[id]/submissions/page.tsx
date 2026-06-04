@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { supabase, isDemoMode } from '@/lib/supabase/client'
+import { getAuthToken, isDemoMode } from '@/lib/db/client'
 import { PageLoading } from '@/components/Loading'
 import {
     ChevronLeft,
@@ -54,83 +54,28 @@ export default function ExamSubmissionsPage() {
                 return
             }
 
-            if (!supabase) throw new Error('Supabase not initialized')
-
-            // Get current user (teacher)
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) {
+            const token = getAuthToken()
+            if (!token) {
                 router.push('/login')
                 return
             }
 
-            // Fetch exam
-            const { data: examData, error: examError } = await supabase
-                .from('exams')
-                .select('*')
-                .eq('id', examId)
-                .eq('teacher_id', user.id) // Only teacher's own exams
-                .single()
-
-            if (examError) throw examError
-            if (!examData) {
-                alert('Exam not found or you do not have access')
-                router.push('/exams')
-                return
-            }
-
-            setExam(examData)
-
-            // Fetch all sessions for this exam
-            const { data: sessions, error: sessionsError } = await supabase
-                .from('exam_sessions')
-                .select('*')
-                .eq('exam_code', examData.code)
-                .eq('status', 'completed')
-                .order('ended_at', { ascending: false })
-
-            if (sessionsError) throw sessionsError
-
-            if (!sessions || sessions.length === 0) {
-                setSubmissions([])
-                setLoading(false)
-                return
-            }
-
-            // Fetch all unique user profiles
-            const userIds = [...new Set(sessions.map(s => s.user_id))]
-            const { data: profiles, error: profilesError } = await supabase
-                .from('profiles')
-                .select('id, full_name, email')
-                .in('id', userIds)
-
-            if (profilesError) throw profilesError
-
-            // Transform data
-            const submissionsData: Submission[] = sessions.map(s => {
-                const profile = profiles?.find(p => p.id === s.user_id)
-                const startTime = new Date(s.started_at).getTime()
-                const endTime = new Date(s.ended_at).getTime()
-                const durationSeconds = Math.round((endTime - startTime) / 1000)
-
-                return {
-                    session_id: s.id,
-                    student_id: s.user_id,
-                    student_name: profile?.full_name || 'Unknown User',
-                    student_email: profile?.email || '',
-                    score: s.score || 0,
-                    status: s.status,
-                    started_at: s.started_at,
-                    ended_at: s.ended_at,
-                    duration_seconds: durationSeconds
-                }
+            const res = await fetch(`/api/exams/${examId}/submissions`, {
+                headers: { 'Authorization': `Bearer ${token}` }
             })
+            
+            const data = await res.json()
+            
+            if (!res.ok) {
+                throw new Error(data.error || 'Failed to fetch submissions')
+            }
 
-            setSubmissions(submissionsData)
+            setExam(data.exam)
+            setSubmissions(data.submissions || [])
 
         } catch (error: any) {
-            console.error('Error fetching data:', error)
+            console.error('Error fetching submissions:', error)
             alert('Failed to load submissions: ' + error.message)
-            router.push('/exams')
         } finally {
             setLoading(false)
         }
@@ -188,13 +133,13 @@ export default function ExamSubmissionsPage() {
     if (loading) return <PageLoading title="Loading submissions..." />
 
     const avgScore = submissions.length > 0
-        ? submissions.reduce((acc, s) => acc + s.score, 0) / submissions.length
+        ? submissions.reduce((acc, s) => acc + parseFloat(String(s.score || 0)), 0) / submissions.length
         : 0
     const highestScore = submissions.length > 0
-        ? Math.max(...submissions.map(s => s.score))
+        ? Math.max(...submissions.map(s => parseFloat(String(s.score || 0))))
         : 0
     const lowestScore = submissions.length > 0
-        ? Math.min(...submissions.map(s => s.score))
+        ? Math.min(...submissions.map(s => parseFloat(String(s.score || 0))))
         : 0
 
     return (
@@ -279,16 +224,20 @@ export default function ExamSubmissionsPage() {
 
                                         {/* Score */}
                                         <div className="text-right">
-                                            <div className={`text-3xl font-black mb-1 ${sub.score >= 80 ? 'text-emerald-400' :
-                                                sub.score >= 60 ? 'text-amber-400' :
+                                            {(() => { const score = parseFloat(String(sub.score || 0)); return (
+                                            <>
+                                            <div className={`text-3xl font-black mb-1 ${score >= 80 ? 'text-emerald-400' :
+                                                score >= 60 ? 'text-amber-400' :
                                                     'text-rose-400'
                                                 }`}>
-                                                {sub.score.toFixed(1)}%
+                                                {score.toFixed(1)}%
                                             </div>
-                                            <span className={`text-xs uppercase font-bold ${sub.score >= 60 ? 'text-emerald-500' : 'text-rose-500'
+                                            <span className={`text-xs uppercase font-bold ${score >= 60 ? 'text-emerald-500' : 'text-rose-500'
                                                 }`}>
-                                                {sub.score >= 60 ? 'Passed' : 'Failed'}
+                                                {score >= 60 ? 'Passed' : 'Failed'}
                                             </span>
+                                            </>
+                                            )})()}
                                         </div>
 
                                         {/* Actions */}

@@ -569,7 +569,7 @@ export default function ManageQuestionsPage() {
                                                     <User className="w-6 h-6" />
                                                 </div>
                                                 <div className="text-sm font-semibold text-white">Manual Grading</div>
-                                                <p className="text-xs text-slate-400 mt-1">Teacher will grade manually</p>
+                                                <p className="text-xs text-slate-400 mt-1">Admin will grade manually</p>
                                             </button>
                                             <button
                                                 type="button"

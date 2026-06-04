@@ -91,8 +91,15 @@ export default function ExamIntroPage() {
                 const data = await res.json()
                 setExamData({
                     ...data.exam,
-                    questions: data.exam.question_count,
-                    proctoringEnabled: data.exam.proctoring_enabled
+                    questions: data.exam.question_count || 0,
+                    proctoringEnabled: data.exam.proctoring_enabled,
+                    instructor: data.exam.instructor || 'System Admin',
+                    rules: data.exam.rules || [
+                        'Full screen mode is mandatory',
+                        'Tab switching is strictly prohibited',
+                        'No external devices or materials allowed',
+                        'Your activity may be monitored'
+                    ]
                 })
 
             } catch (error: any) {

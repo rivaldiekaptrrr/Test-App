@@ -19,10 +19,10 @@ import {
 
 // Mock Data for Demo Mode
 const demoUsers = [
-    { id: '1', full_name: 'Dr. Alan Turing', email: 'teacher@demo.com', role: 'teacher', created_at: '2023-01-15T10:00:00Z', status: 'active' },
-    { id: '2', full_name: 'John Student', email: 'student@demo.com', role: 'student', created_at: '2023-01-20T14:30:00Z', status: 'active' },
-    { id: '3', full_name: 'Alice Wonder', email: 'alice@example.com', role: 'student', created_at: '2023-02-01T09:15:00Z', status: 'pending' },
-    { id: '4', full_name: 'Prof. Einstein', email: 'albert@university.edu', role: 'teacher', created_at: '2023-01-10T08:45:00Z', status: 'active' },
+    { id: '1', full_name: 'Dr. Alan Turing', email: 'creator@demo.com', role: 'admin', created_at: '2023-01-15T10:00:00Z', status: 'active' },
+    { id: '2', full_name: 'John Student', email: 'student@demo.com', role: 'user', created_at: '2023-01-20T14:30:00Z', status: 'active' },
+    { id: '3', full_name: 'Alice Wonder', email: 'alice@example.com', role: 'user', created_at: '2023-02-01T09:15:00Z', status: 'pending' },
+    { id: '4', full_name: 'Prof. Einstein', email: 'albert@university.edu', role: 'admin', created_at: '2023-01-10T08:45:00Z', status: 'active' },
 ]
 
 export default function UserManagementPage() {
@@ -32,7 +32,7 @@ export default function UserManagementPage() {
     const [roleFilter, setRoleFilter] = useState('all') // all, teacher, student
     const [showAddModal, setShowAddModal] = useState(false)
     const [showEditModal, setShowEditModal] = useState(false)
-    const [newUser, setNewUser] = useState({ full_name: '', email: '', role: 'student', password: '' })
+    const [newUser, setNewUser] = useState({ full_name: '', email: '', role: 'user', password: '' })
     const [editingUser, setEditingUser] = useState<any>(null)
     const [actionLoading, setActionLoading] = useState(false)
 
@@ -87,7 +87,7 @@ export default function UserManagementPage() {
                 }
                 setUsers([mockUser, ...users])
                 setShowAddModal(false)
-                setNewUser({ full_name: '', email: '', role: 'student', password: '' })
+                setNewUser({ full_name: '', email: '', role: 'user', password: '' })
                 setActionLoading(false)
                 alert('User created successfully (Demo)')
             }, 1000)
@@ -155,8 +155,8 @@ export default function UserManagementPage() {
 
     const roleStats = {
         total: users.length,
-        teachers: users.filter(u => u.role === 'teacher').length,
-        students: users.filter(u => u.role === 'student').length
+        admins: users.filter(u => u.role === 'admin').length,
+        users: users.filter(u => u.role === 'user').length
     }
 
     if (loading) return <PageLoading title="Loading Users..." />
@@ -173,7 +173,7 @@ export default function UserManagementPage() {
             <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-white tracking-tight">User Management</h1>
-                    <p className="text-slate-400 mt-2">Manage all teachers and students in the organization</p>
+                    <p className="text-slate-400 mt-2">Manage all admins and users in the organization</p>
                 </div>
                 <button
                     onClick={() => setShowAddModal(true)}
@@ -197,8 +197,8 @@ export default function UserManagementPage() {
                 </div>
                 <div className="bg-[#131B2D] border border-white/5 p-6 rounded-2xl flex items-center justify-between shadow-sm">
                     <div>
-                        <p className="text-slate-400 text-sm font-medium uppercase tracking-wider">Teachers</p>
-                        <p className="text-3xl font-bold text-white mt-2">{roleStats.teachers}</p>
+                        <p className="text-slate-400 text-sm font-medium uppercase tracking-wider">Admins</p>
+                        <p className="text-3xl font-bold text-white mt-2">{roleStats.admins}</p>
                     </div>
                     <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-500 border border-emerald-500/20">
                         <UserCheck className="w-6 h-6" />
@@ -206,8 +206,8 @@ export default function UserManagementPage() {
                 </div>
                 <div className="bg-[#131B2D] border border-white/5 p-6 rounded-2xl flex items-center justify-between shadow-sm">
                     <div>
-                        <p className="text-slate-400 text-sm font-medium uppercase tracking-wider">Students</p>
-                        <p className="text-3xl font-bold text-white mt-2">{roleStats.students}</p>
+                        <p className="text-slate-400 text-sm font-medium uppercase tracking-wider">Users</p>
+                        <p className="text-3xl font-bold text-white mt-2">{roleStats.users}</p>
                     </div>
                     <div className="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center text-purple-500 border border-purple-500/20">
                         <GraduationCap className="w-6 h-6" />
@@ -228,7 +228,7 @@ export default function UserManagementPage() {
                     />
                 </div>
                 <div className="flex bg-[#131B2D] p-1 rounded-xl border border-white/10">
-                    {['all', 'teacher', 'student'].map((role) => (
+                    {['all', 'admin', 'user'].map((role) => (
                         <button
                             key={role}
                             onClick={() => setRoleFilter(role)}
@@ -272,7 +272,7 @@ export default function UserManagementPage() {
                                             </div>
                                         </td>
                                         <td className="px-6 py-5">
-                                            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${user.role === 'teacher'
+                                            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${user.role === 'admin'
                                                 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                                                 : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
                                                 }`}>
@@ -356,8 +356,8 @@ export default function UserManagementPage() {
                                     onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
                                     className="w-full px-4 py-3 bg-[#0B1120] border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 >
-                                    <option value="student">Student</option>
-                                    <option value="teacher">Teacher</option>
+                                    <option value="user">User</option>
+                                    <option value="admin">Admin</option>
                                 </select>
                             </div>
                             <div className="pt-4 flex gap-3">
@@ -422,8 +422,7 @@ export default function UserManagementPage() {
                                     onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })}
                                     className="w-full px-4 py-3 bg-[#0B1120] border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 >
-                                    <option value="student">Student</option>
-                                    <option value="teacher">Teacher</option>
+                                    <option value="user">User</option>
                                     <option value="admin">Admin</option>
                                 </select>
                             </div>

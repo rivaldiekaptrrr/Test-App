@@ -34,8 +34,11 @@ export default function DetailedAnswersPage() {
 
     const [loading, setLoading] = useState(true)
     const [examTitle, setExamTitle] = useState('')
+    const [examId, setExamId] = useState('')
     const [score, setScore] = useState(0)
     const [questions, setQuestions] = useState<QuestionDetail[]>([])
+    const [isAdmin, setIsAdmin] = useState(false)
+    const [gradingState, setGradingState] = useState<Record<string, { points: number, saving: boolean }>>({})
 
     useEffect(() => {
         fetchDetailedAnswers()
@@ -68,8 +71,22 @@ export default function DetailedAnswersPage() {
             }
 
             setExamTitle(data.examTitle)
+            setExamId(data.examId)
             setScore(data.score || 0)
             setQuestions(data.questions)
+            setIsAdmin(data.isAdmin === true)
+            
+            // Initialize grading state
+            const initialGradingState: Record<string, { points: number, saving: boolean }> = {}
+            data.questions.forEach((q: QuestionDetail) => {
+                if (q.question_type === 'essay' || q.question_type === 'short_answer') {
+                    initialGradingState[q.question_id] = {
+                        points: q.points_earned || 0,
+                        saving: false
+                    }
+                }
+            })
+            setGradingState(initialGradingState)
 
         } catch (error: any) {
             console.error('Error fetching details:', error)
@@ -77,6 +94,47 @@ export default function DetailedAnswersPage() {
             router.push('/results')
         } finally {
             setLoading(false)
+        }
+    }
+
+    const handleSaveGrade = async (questionId: string) => {
+        const grade = gradingState[questionId]?.points
+        if (grade === undefined) return
+        
+        const question = questions.find(q => q.question_id === questionId)
+        if (!question) return
+        
+        if (grade < 0 || grade > question.points) {
+            alert(`Points must be between 0 and ${question.points}`)
+            return
+        }
+
+        setGradingState(prev => ({ ...prev, [questionId]: { ...prev[questionId], saving: true } }))
+        try {
+            const token = getAuthToken()
+            const res = await fetch(`/api/results/${sessionId}/grade`, {
+                method: 'PUT',
+                headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ question_id: questionId, points_earned: grade })
+            })
+            
+            if (!res.ok) {
+                const errorData = await res.json()
+                throw new Error(errorData.error || 'Failed to save grade')
+            }
+            
+            // Reload data to get updated final score and correct/incorrect status
+            await fetchDetailedAnswers()
+            alert('Grade saved successfully!')
+            
+        } catch (error: any) {
+            console.error('Grading error:', error)
+            alert('Failed to save grade: ' + error.message)
+        } finally {
+            setGradingState(prev => ({ ...prev, [questionId]: { ...prev[questionId], saving: false } }))
         }
     }
 
@@ -91,9 +149,9 @@ export default function DetailedAnswersPage() {
             {/* Header */}
             <header className="bg-[#0F1623] border-b border-white/5 sticky top-0 z-30 backdrop-blur-md">
                 <div className="max-w-5xl mx-auto px-6 py-4">
-                    <Link href="/results" className="inline-flex items-center gap-2 text-slate-400 hover:text-white mb-3 transition-colors text-sm">
+                    <Link href={isAdmin && examId ? `/exams/${examId}/submissions` : '/results'} className="inline-flex items-center gap-2 text-slate-400 hover:text-white mb-3 transition-colors text-sm">
                         <ChevronLeft className="w-4 h-4" />
-                        Back to Summary
+                        Back to {isAdmin ? 'Submissions' : 'Summary'}
                     </Link>
                     <div className="flex items-center justify-between">
                         <div>
@@ -101,7 +159,7 @@ export default function DetailedAnswersPage() {
                             <p className="text-sm text-slate-400">Answer Review</p>
                         </div>
                         <div className="text-right">
-                            <div className="text-3xl font-black text-blue-400">{score.toFixed(1)}%</div>
+                            <div className="text-3xl font-black text-blue-400">{parseFloat(String(score || 0)).toFixed(1)}%</div>
                             <p className="text-xs text-slate-500 uppercase font-bold">Final Score</p>
                         </div>
                     </div>
@@ -216,20 +274,55 @@ export default function DetailedAnswersPage() {
                                 {/* Essay / Short Answer */}
                                 {(q.question_type === 'essay' || q.question_type === 'short_answer') && (
                                     <div>
-                                        <p className="text-xs text-slate-500 uppercase font-bold mb-2">Your Answer:</p>
+                                        <p className="text-xs text-slate-500 uppercase font-bold mb-2">Student Answer:</p>
                                         {q.student_answer ? (
-                                            <div className="p-4 bg-[#1A2333] border border-white/10 rounded-xl">
+                                            <div className="p-4 bg-[#1A2333] border border-white/10 rounded-xl mb-4">
                                                 <p className="text-slate-300 whitespace-pre-wrap">{q.student_answer}</p>
                                             </div>
                                         ) : (
-                                            <div className="p-4 bg-slate-500/5 border border-slate-500/20 rounded-xl text-center">
+                                            <div className="p-4 bg-slate-500/5 border border-slate-500/20 rounded-xl text-center mb-4">
                                                 <p className="text-slate-500 italic">No answer provided</p>
                                             </div>
                                         )}
-                                        <p className="text-xs text-amber-400 mt-2 flex items-center gap-1">
-                                            <AlertTriangle className="w-3 h-3" />
-                                            Requires manual grading by teacher
-                                        </p>
+                                        
+                                        {isAdmin ? (
+                                            <div className="flex items-center gap-4 bg-blue-500/5 p-4 rounded-xl border border-blue-500/20">
+                                                <div>
+                                                    <label className="block text-xs font-bold text-blue-400 uppercase mb-1">
+                                                        Award Points (Max: {q.points})
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        min={0}
+                                                        max={q.points}
+                                                        step={0.5}
+                                                        value={gradingState[q.question_id]?.points ?? ''}
+                                                        onChange={(e) => setGradingState(prev => ({ 
+                                                            ...prev, 
+                                                            [q.question_id]: { ...prev[q.question_id], points: parseFloat(e.target.value) } 
+                                                        }))}
+                                                        className="w-24 px-3 py-2 bg-[#131B2D] border border-blue-500/30 rounded-lg text-white focus:outline-none focus:border-blue-400"
+                                                    />
+                                                </div>
+                                                <button
+                                                    onClick={() => handleSaveGrade(q.question_id)}
+                                                    disabled={gradingState[q.question_id]?.saving}
+                                                    className="mt-5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold transition-colors disabled:opacity-50"
+                                                >
+                                                    {gradingState[q.question_id]?.saving ? 'Saving...' : 'Save Grade'}
+                                                </button>
+                                                {q.points_earned !== null && (
+                                                    <div className="mt-5 text-sm font-semibold text-emerald-400 flex items-center gap-1">
+                                                        <Check className="w-4 h-4" /> Graded: {q.points_earned} pts
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <p className="text-xs text-amber-400 mt-2 flex items-center gap-1">
+                                                <AlertTriangle className="w-3 h-3" />
+                                                Requires manual grading by teacher
+                                            </p>
+                                        )}
                                     </div>
                                 )}
 

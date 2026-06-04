@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
 
         // Get published exams (or all if teacher/admin)
         let exams
-        if (user && ['admin', 'teacher', 'hr'].includes(user.role)) {
+        if (user && user.role === 'admin') {
             exams = await sql`
                 SELECT 
                     id, code, title, description, duration, status,
@@ -92,9 +92,9 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        if (!['admin', 'teacher', 'hr'].includes(user.role)) {
+        if (user.role !== 'admin') {
             return NextResponse.json(
-                { error: 'Only teachers can create exams' },
+                { error: 'Only admins can manage exams' },
                 { status: 403 }
             )
         }

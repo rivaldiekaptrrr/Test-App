@@ -11,7 +11,7 @@ export default function SignupPage() {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [confirmPassword, setConfirmPassword] = useState('')
-    const [role, setRole] = useState('student')
+    const [role, setRole] = useState('user')
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
     const [success, setSuccess] = useState(false)
@@ -155,8 +155,8 @@ export default function SignupPage() {
                                             onChange={(e) => setRole(e.target.value)}
                                             className="w-full px-4 py-3 bg-[#1A2333] border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-inner appearance-none cursor-pointer"
                                         >
-                                            <option value="student">Student</option>
-                                            <option value="teacher">Teacher</option>
+                                            <option value="user">User</option>
+                                            <option value="admin">Admin</option>
                                         </select>
                                         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
                                             <ChevronDown className="h-4 w-4" />

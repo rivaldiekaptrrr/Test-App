@@ -60,7 +60,10 @@ export default function EditExamPage() {
                 headers: { 'Authorization': `Bearer ${token}` }
             })
 
-            if (!res.ok) throw new Error('Failed to fetch exam')
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.error || 'Failed to fetch exam');
+            }
             const { exam } = await res.json()
 
             // Extract rules from description if they exist

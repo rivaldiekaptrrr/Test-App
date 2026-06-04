@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { supabase, isDemoMode } from '@/lib/supabase/client'
+import { getAuthToken, isDemoMode } from '@/lib/db/client'
 import LoadingSpinner from '@/components/Loading'
 import {
     ChevronLeft,
@@ -111,53 +111,37 @@ export default function SettingsPage() {
                     if (savedNotifications) setNotifications(JSON.parse(savedNotifications))
 
                 } else {
-                    // LOAD REAL DATA FROM SUPABASE
-                    if (!supabase) return
-
-                    const { data: { user } } = await supabase.auth.getUser()
-                    if (!user) {
-                        // Not logged in
+                    // LOAD REAL DATA FROM INTERNAL API
+                    const token = getAuthToken()
+                    if (!token) {
                         setIsLoggedIn(false)
                         return
                     }
 
                     setIsLoggedIn(true)
 
-                    // 1. Get Profile
-                    const { data: profileData, error: profileError } = await supabase
-                        .from('profiles')
-                        .select('*')
-                        .eq('id', user.id)
-                        .single()
-
-                    if (profileError) throw profileError
-
-                    if (profileData) {
-                        setProfile({
-                            fullName: profileData.full_name || '',
-                            email: profileData.email || '',
-                            role: profileData.role || 'User',
-                            avatar: profileData.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(profileData.full_name || 'User')}&background=0D8ABC&color=fff`
-                        })
-
-                        // 2. Get Organization (single-tenant mode)
-                        // Try to get organization from profile first, otherwise get the first one
-                        let orgQuery = supabase.from('organizations').select('*')
-
-                        if (profileData.organization_id) {
-                            orgQuery = orgQuery.eq('id', profileData.organization_id)
+                    const res = await fetch('/api/settings', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    })
+                    const data = await res.json()
+                    
+                    if (res.ok) {
+                        if (data.profile) {
+                            setProfile({
+                                fullName: data.profile.full_name || '',
+                                email: data.profile.email || '',
+                                role: data.profile.role || 'User',
+                                avatar: data.profile.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.profile.full_name || 'User')}&background=0D8ABC&color=fff`
+                            })
                         }
-
-                        const { data: orgData, error: orgError } = await orgQuery.limit(1).maybeSingle()
-
-                        if (orgData && !orgError) {
+                        
+                        if (data.organization) {
                             setOrganization({
-                                name: orgData.name || '',
-                                domain: orgData.domain || '',
-                                storagePath: orgData.storage_path || ''
+                                name: data.organization.name || '',
+                                domain: data.organization.domain || '',
+                                storagePath: data.organization.storage_path || ''
                             })
                         } else {
-                            // No organization exists yet, set defaults
                             setOrganization({
                                 name: 'My Organization',
                                 domain: '',
@@ -202,23 +186,29 @@ export default function SettingsPage() {
                 showNotification('Profile updated successfully! (Demo)')
             } else {
                 // REAL MODE
-                if (!supabase) throw new Error('Supabase client not initialized')
-
-                const { data: { user } } = await supabase.auth.getUser()
-                if (!user) {
+                const token = getAuthToken()
+                if (!token) {
                     showNotification('You must be logged in to save', 'error')
                     return
                 }
 
-                const { error } = await supabase
-                    .from('profiles')
-                    .update({
-                        full_name: profile.fullName
-                        // Email is changed via Security tab using Supabase Auth
+                const res = await fetch('/api/settings', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        type: 'profile',
+                        payload: { fullName: profile.fullName }
                     })
-                    .eq('id', user.id)
+                })
 
-                if (error) throw error
+                if (!res.ok) {
+                    const data = await res.json()
+                    throw new Error(data.error || 'Failed to update profile')
+                }
+                
                 showNotification('Profile updated successfully!')
             }
         } catch (error: any) {
@@ -289,49 +279,31 @@ export default function SettingsPage() {
                 localStorage.setItem('demo_organization', JSON.stringify(organization))
                 showNotification('Organization settings saved! (Demo)')
             } else {
-                // REAL MODE (single-tenant)
-                if (!supabase) throw new Error('Supabase client not initialized')
-
-                const { data: { user } } = await supabase.auth.getUser()
-                if (!user) {
+                // REAL MODE
+                const token = getAuthToken()
+                if (!token) {
                     showNotification('You must be logged in to save', 'error')
                     return
                 }
 
-                // Check if organization exists
-                const { data: existingOrg } = await supabase
-                    .from('organizations')
-                    .select('id')
-                    .limit(1)
-                    .maybeSingle()
+                const res = await fetch('/api/settings', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        type: 'organization',
+                        payload: organization
+                    })
+                })
 
-                if (existingOrg) {
-                    // Update existing organization
-                    const { error } = await supabase
-                        .from('organizations')
-                        .update({
-                            name: organization.name,
-                            domain: organization.domain,
-                            storage_path: organization.storagePath
-                        })
-                        .eq('id', existingOrg.id)
-
-                    if (error) throw error
-                    showNotification('Organization updated successfully!')
-                } else {
-                    // Create new organization (single-tenant mode)
-                    const { error } = await supabase
-                        .from('organizations')
-                        .insert({
-                            name: organization.name,
-                            slug: organization.name.toLowerCase().replace(/\s+/g, '-'),
-                            domain: organization.domain,
-                            storage_path: organization.storagePath
-                        })
-
-                    if (error) throw error
-                    showNotification('Organization created successfully!')
+                if (!res.ok) {
+                    const data = await res.json()
+                    throw new Error(data.error || 'Failed to update organization')
                 }
+                
+                showNotification('Organization settings updated successfully!')
             }
         } catch (error: any) {
             console.error('Save org error:', error)
@@ -357,13 +329,27 @@ export default function SettingsPage() {
                 showNotification('New passwords do not match', 'error')
                 return
             }
-            if (!supabase) throw new Error('Supabase client not initialized')
+            
+            const token = getAuthToken()
+            if (!token) return
 
-            const { error } = await supabase.auth.updateUser({
-                password: passwords.new
+            const res = await fetch('/api/settings', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    type: 'password',
+                    payload: { current: passwords.current, new: passwords.new }
+                })
             })
 
-            if (error) throw error
+            if (!res.ok) {
+                const data = await res.json()
+                throw new Error(data.error || 'Failed to update password')
+            }
+
             setPasswords({ current: '', new: '', confirm: '' })
             showNotification('Password updated successfully!')
         } catch (error: any) {
@@ -389,15 +375,10 @@ export default function SettingsPage() {
                 showNotification('New email is same as current email', 'error')
                 return
             }
-            if (!supabase) throw new Error('Supabase client not initialized')
-
-            const { error } = await supabase.auth.updateUser({
-                email: emailChange.newEmail
-            })
-
-            if (error) throw error
-            setEmailChange({ ...emailChange, emailPending: true })
-            showNotification('Verification email sent! Please check your new email inbox and click the confirmation link.')
+            
+            // For now, return a placeholder success since changing email requires more complex auth flows
+            showNotification('Email update capability requires additional verification logic in internal API.', 'error')
+            
         } catch (error: any) {
             console.error('Email change error:', error)
             showNotification(`Failed to change email: ${error.message}`, 'error')

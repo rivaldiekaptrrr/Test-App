@@ -46,14 +46,11 @@ export default function LoginPage() {
                 // Conditional Redirect based on role
                 switch (user.role) {
                     case 'admin':
-                    case 'teacher':
-                    case 'hr':
                         router.push('/dashboard')
                         break
-                    case 'student':
-                    case 'applicant':
+                    case 'user':
                     default:
-                        router.push('/student')
+                        router.push('/user')
                         break
                 }
             }
@@ -175,22 +172,23 @@ export default function LoginPage() {
                     </div>
 
                     {/* Demo Credentials */}
-                    <div className="mt-6 p-4 bg-[#1A2333]/50 rounded-xl border border-white/5">
-                        <p className="text-[10px] text-slate-500 text-center uppercase tracking-wider font-bold mb-3">Demo Credentials</p>
-                        <div className="flex flex-col gap-2">
-                            {[
-                                { role: 'Admin', email: 'admin@demo.com', pass: 'Demo123!' },
-                                { role: 'Teacher', email: 'teacher@demo.com', pass: 'Demo123!' },
-                                { role: 'Student', email: 'student@demo.com', pass: 'Demo123!' },
-                            ].map((cred, idx) => (
-                                <div key={idx} className="flex justify-between items-center text-xs text-slate-400 px-2 py-1 hover:bg-white/5 rounded transition-colors cursor-pointer group" onClick={() => { setEmail(cred.email); setPassword(cred.pass); }}>
-                                    <span className="font-semibold text-slate-300 w-16">{cred.role}</span>
-                                    <span className="font-mono">{cred.email}</span>
-                                    <span className="text-slate-600 group-hover:text-blue-400 transition-colors">Auto-fill →</span>
-                                </div>
-                            ))}
+                    {isDemoMode && (
+                        <div className="mt-6 p-4 bg-[#1A2333]/50 rounded-xl border border-white/5">
+                            <p className="text-[10px] text-slate-500 text-center uppercase tracking-wider font-bold mb-3">Demo Credentials</p>
+                            <div className="flex flex-col gap-2">
+                                {[
+                                    { role: 'Admin', email: 'creator@demo.com', pass: 'Demo123!' },
+                                    { role: 'User', email: 'user@demo.com', pass: 'Demo123!' },
+                                ].map((cred, idx) => (
+                                    <div key={idx} className="flex justify-between items-center text-xs text-slate-400 px-2 py-1 hover:bg-white/5 rounded transition-colors cursor-pointer group" onClick={() => { setEmail(cred.email); setPassword(cred.pass); }}>
+                                        <span className="font-semibold text-slate-300 w-16">{cred.role}</span>
+                                        <span className="font-mono">{cred.email}</span>
+                                        <span className="text-slate-600 group-hover:text-blue-400 transition-colors">Auto-fill →</span>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
 
                 {/* Footer */}

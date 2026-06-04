@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
         let totalScore = 0
         let maxScore = 0
 
-        // Prepare student_answers inserts
+        // Prepare user_answers inserts
         // We'll iterate questions to ensure we grade everything
         for (const q of questions) {
             // maxScore += parseFloat(q.points)
@@ -113,11 +113,11 @@ export async function POST(request: NextRequest) {
 
             totalScore += pointsEarned
 
-            // Insert into student_answers (or update if exists)
+            // Insert into user_answers (or update if exists)
             // Using ON CONFLICT to handle re-submissions if necessary, though logic is one-time submit mostly
             if (userAnswer) {
                 await sql`
-                    INSERT INTO student_answers (
+                    INSERT INTO user_answers (
                         session_id, question_id, selected_option_id, answer_text, is_correct, points_earned
                     )
                     VALUES (

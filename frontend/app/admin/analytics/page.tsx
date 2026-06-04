@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { isDemoMode } from '@/lib/supabase/client'
+import { isDemoMode } from '@/lib/db/client'
 import {
     ChevronLeft,
     BarChart2,
